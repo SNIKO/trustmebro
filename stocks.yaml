@@ -1,0 +1,131 @@
+﻿server:
+  port: 3000
+
+# Database Configuration
+db:
+  fileName: "stocks.sqlite"
+
+outputFolder: "~/ai/stocks/"
+startDate: 2025-12-01
+
+# Sources to track, organized by platform
+sources:
+  youtube:
+    concurrency: 1
+    channels:
+      - "@everythingmoney"
+      - "@NolanGouveia"
+      - "@FinancialEducation"
+      - "@HyperChangeTV"
+      - "@bolshegold"
+      - "@JosephCarlsonShow"
+      - "@thepatientinvestorr"
+      - "@parkevtatevosiancfa9544"
+      - "@BenFelixCSI"
+      - "@danielpronk"
+      - "@Pensioncraft"
+      - "@RealEismanPlaybook"
+      - "@AswathDamodaranonValuation"
+      - "@TheProfGPod"
+
+  telegram:
+    channels: []
+    # Example:
+    # - "cryptoinsights"
+
+  twitter:
+    accounts: []
+    # Example:
+    # - "elonmusk"
+
+topic: "Stock market, investing, and financial markets (equities, ETFs, portfolio management, macro economics)"
+
+tags:
+  ticker:
+    type: string[]
+    description: "Canonical stock tickers, UPPERCASE only (e.g. AAPL, TSLA, MSFT, SPY)."
+
+  company:
+    type: string[]
+    description: "Canonical company names in snake_case (e.g. apple, tesla, microsoft)."
+
+  sector:
+    type: enum[]
+    description: "GICS sector classification for stocks/companies discussed."
+    values:
+      - technology
+      - healthcare
+      - financials
+      - consumer_discretionary
+      - consumer_staples
+      - energy
+      - utilities
+      - industrials
+      - materials
+      - real_estate
+      - communication_services
+
+  industry:
+    type: string[]
+    description: "Specific industry/sub-sector in snake_case (e.g. semiconductors, biotech, banking, ev_manufacturing)."
+
+  market_cap:
+    type: enum[]
+    description: "Market capitalization category of the company."
+    values:
+      - mega_cap
+      - large_cap
+      - mid_cap
+      - small_cap
+      - micro_cap
+
+  investment_style:
+    type: enum[]
+    description: "Investment approach or style discussed."
+    values:
+      - value
+      - growth
+      - dividend
+      - momentum
+      - index
+      - passive
+      - active
+      - day_trading
+      - swing_trading
+      - long_term_hold
+
+  asset_type:
+    type: enum[]
+    description: "Type of financial instrument discussed."
+    values:
+      - stock
+      - index
+      - etf
+      - mutual_fund
+      - option
+      - bond
+      - reit
+      - commodity
+      - crypto
+      - cash
+
+  narrative:
+    type: string[]
+    description: "Investment or market narratives in snake_case (e.g. ai_boom, ev_transition, rate_cuts)."
+
+  sentiment:
+    type: enum[]
+    description: "Directional stance on the stock/market. Omit if neutral or unclear."
+    values:
+      - bullish
+      - bearish
+
+  recommendation:
+    type: enum[]
+    description: "Analyst or influencer recommendation type."
+    values:
+      - strong_buy
+      - buy
+      - hold
+      - sell
+      - strong_sell
