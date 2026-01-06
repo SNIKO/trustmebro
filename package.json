@@ -1,0 +1,35 @@
+{
+	"name": "trustmebro",
+	"version": "0.0.0",
+	"description": "TrustMeBro CLI app",
+	"type": "module",
+	"bin": {
+		"trustmebro": "dist/cli.js"
+	},
+	"files": [
+		"dist"
+	],
+	"exports": {
+		".": "./dist/index.js"
+	},
+	"private": true,
+	"scripts": {
+		"dev": "bun run src/cli.ts",
+		"build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && (printf '#!/usr/bin/env bun\n' | cat - dist/cli.js > dist/.cli.js) && mv dist/.cli.js dist/cli.js && chmod +x dist/cli.js",
+		"lint": "bunx --bun biome lint .",
+		"format": "bunx --bun biome format . --write",
+		"check": "bunx --bun biome check .",
+		"changeset": "bunx --bun changeset",
+		"version-packages": "bunx --bun changeset version",
+		"release": "bunx --bun changeset publish"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.11",
+		"@changesets/cli": "^2.29.8",
+		"@types/bun": "latest",
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"greptor": "^0.4.0"
+	}
+}
