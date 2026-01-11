@@ -21,8 +21,12 @@ Social media contains valuable insights — market sentiment, expert analysis, b
 - **No search**: Can't grep your social media consumption history
 - **Context switching**: Jumping between platforms breaks focus
 
+**Terminology:**
+- **Platform** — the service (YouTube, Telegram, Twitter, etc.)
+- **Feed** — the account/channel/subreddit you track on that platform
+
 **TrustMeBro + Greptor solve this by:**
-- **Automated fetching**: Pull content from your tracked sources on a schedule
+- **Automated fetching**: Pull content from your tracked feeds on each platform on a schedule
 - **Persistent storage**: All content saved as searchable Markdown
 - **Structured tagging**: LLM-powered extraction of tickers, sentiment, topics, narratives
 - **Agent-ready**: Your AI assistant can research on your behalf
@@ -51,16 +55,15 @@ Create a YAML config file (e.g., `stocks.yaml`) defining what to fetch:
 server:
   port: 3000
 
-db:
-  fileName: "stocks.sqlite"
+stateFile: "~/ai/stocks/.trustmebro-state.yaml" # optional; defaults to <outputFolder>/.trustmebro-state.yaml
 
 outputFolder: "~/ai/stocks/"
 startDate: 2025-12-01
 
 topic: "Stock market, investing, and financial markets"
 
-# Sources to track
-sources:
+# Platforms and feeds to track
+platforms:
   youtube:
     concurrency: 1
     channels:
@@ -111,7 +114,7 @@ tags:
   recommendation:
     type: enum[]
     description: "Investment recommendation"
-    values:
+  values:
       - strong_buy
       - buy
       - hold
@@ -119,30 +122,32 @@ tags:
       - strong_sell
 ```
 
+> `platforms` is the preferred key; existing configs that still use `sources` will continue to work.
+
 ### Run the Fetcher
 
 ```bash
-# Fetch content from all configured sources
+# Fetch content from all configured platforms/feeds
 trustmebro fetch --config stocks.yaml
 
-# Fetch from specific source only
-trustmebro fetch --config stocks.yaml --source youtube
+# Fetch from a specific platform only
+trustmebro fetch --config stocks.yaml --platform youtube
 
 # Fetch and watch for new content (continuous mode)
 trustmebro watch --config stocks.yaml
 
 # One-time fetch for a specific channel
-trustmebro fetch-channel --source youtube --id @JosephCarlsonShow --config stocks.yaml
+trustmebro fetch-channel --platform youtube --id @JosephCarlsonShow --config stocks.yaml
 ```
 
 ### What Happens Next
 
 TrustMeBro will:
 
-1. **Connect to sources** using the channels/accounts in your config
+1. **Connect to platforms/feeds** using the channels/accounts in your config
 2. **Fetch content** since `startDate` (or from last sync)
 3. **Write to output folder** in Greptor-compatible format
-4. **Track progress** in SQLite database to avoid duplicates
+4. **Track progress** in a tiny YAML state file to avoid duplicates
 5. **Hand off to Greptor** for background processing (cleaning, chunking, tagging)
 
 After the initial fetch, you'll have a structure like:
@@ -188,7 +193,7 @@ const greptor = await createGreptor({
 // This happens automatically after fetching
 await greptor.eat({
   id: 'dQw4w9WgXcQ',
-  source: 'youtube',
+  source: 'youtube', // platform
   publisher: '@JosephCarlsonShow',
   format: 'text',
   label: 'NVIDIA Q4 Earnings: AI Boom Continues',
@@ -201,7 +206,7 @@ await greptor.eat({
   },
 });
 
-// Generate Claude Code skill for your sources
+// Generate Claude Code skill for your platforms
 await greptor.createSkill(['youtube', 'telegram', 'twitter']);
 ```
 
@@ -317,7 +322,7 @@ Once set up, you can ask Claude (or any agent with ripgrep access):
 
 > "Show me dividend stock discussions with hold or sell recommendations"
 
-The agent will use ripgrep to search your indexed content and synthesize insights from multiple sources.
+The agent will use ripgrep to search your indexed content and synthesize insights from multiple platforms/feeds.
 
 ## Configuration Reference
 
@@ -328,38 +333,32 @@ server:
   port: 3000              # HTTP server port for webhooks/API
 ```
 
-### Database
-
-```yaml
-db:
-  fileName: "stocks.sqlite"   # SQLite database for tracking fetch progress
-```
-
 ### Output
 
 ```yaml
 outputFolder: "~/ai/stocks/"  # Where to write fetched content
 startDate: 2025-12-01         # Fetch content from this date onward
+stateFile: "~/ai/stocks/.trustmebro-state.yaml" # optional; defaults under outputFolder
 ```
 
-### Sources
+### Platforms
 
 #### YouTube
 
 ```yaml
-sources:
+platforms:
   youtube:
     concurrency: 1      # Number of parallel fetch workers
     channels:
       - "@channelhandle"
 ```
 
-Fetches video transcripts using YouTube API. Requires `YOUTUBE_API_KEY` environment variable.
+Fetches video transcripts with `yt-dlp` (no YouTube API key needed). Make sure `yt-dlp` is installed and on your `PATH`.
 
 #### Telegram
 
 ```yaml
-sources:
+platforms:
   telegram:
     channels:
       - "channelname"   # Public channel username
@@ -370,7 +369,7 @@ Fetches messages from public Telegram channels. Requires `TELEGRAM_API_ID` and `
 #### Twitter
 
 ```yaml
-sources:
+platforms:
   twitter:
     accounts:
       - "username"      # Twitter handle without @
@@ -406,9 +405,6 @@ Tags are used by Greptor to structure chunks for grep-ability.
 Create a `.env` file in your project root:
 
 ```bash
-# YouTube Data API v3
-YOUTUBE_API_KEY=your_key_here
-
 # Telegram API (get from https://my.telegram.org)
 TELEGRAM_API_ID=your_id
 TELEGRAM_API_HASH=your_hash
@@ -418,6 +414,9 @@ TWITTER_BEARER_TOKEN=your_token
 
 # OpenAI for Greptor processing
 OPENAI_API_KEY=your_key
+
+# Optional override for Greptor LLM
+GREPTOR_MODEL=gpt-5-mini
 ```
 
 ## Use Cases
@@ -442,7 +441,7 @@ Stay updated on:
 
 Combine with Yahoo Finance MCP and personal data:
 - Get sentiment data for your holdings
-- Research new investment ideas mentioned across sources
+- Research new investment ideas mentioned across platforms
 - Track narrative shifts that might affect your positions
 - Automate monthly portfolio reviews with agent-generated reports
 
@@ -471,7 +470,7 @@ Organize multiple research areas:
     config: tech.yaml
 ```
 
-Each with its own config, sources, and tag schema.
+Each with its own config, platforms, and tag schema.
 
 ### Custom Processing Pipeline
 
@@ -521,7 +520,7 @@ Yes! TrustMeBro writes raw Markdown files immediately, which you can search/read
 
 **Q: What if I don't have API keys?**
 
-Some sources work without keys:
+Some platforms work without keys:
 - YouTube: Transcript download (no key needed, but rate-limited)
 - Reddit: Public scraping (no key, but fragile)
 
@@ -529,7 +528,7 @@ For production use, official APIs are recommended.
 
 **Q: How do I handle API rate limits?**
 
-TrustMeBro tracks fetch progress in SQLite and resumes where it left off. If you hit rate limits:
+TrustMeBro tracks fetch progress in the state file and resumes where it left off. If you hit rate limits:
 - Reduce `concurrency` in config
 - Add delays between requests
 - Spread fetches across multiple API keys (advanced)

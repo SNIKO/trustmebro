@@ -1,0 +1,85 @@
+- name: ticker
+  type: string[]
+  description: Canonical stock tickers, UPPERCASE only (e.g. AAPL, TSLA, MSFT, SPY).
+  enumValues: null
+- name: company
+  type: string[]
+  description: Canonical company names in snake_case (e.g. apple, tesla, microsoft).
+  enumValues: null
+- name: sector
+  type: enum[]
+  description: GICS sector classification for stocks/companies discussed.
+  enumValues:
+    - technology
+    - healthcare
+    - financials
+    - consumer_discretionary
+    - consumer_staples
+    - energy
+    - utilities
+    - industrials
+    - materials
+    - real_estate
+    - communication_services
+- name: industry
+  type: string[]
+  description: Specific industry/sub-sector in snake_case (e.g. semiconductors,
+    biotech, banking, ev_manufacturing).
+  enumValues: null
+- name: market_cap
+  type: enum[]
+  description: Market capitalization category of the company.
+  enumValues:
+    - mega_cap
+    - large_cap
+    - mid_cap
+    - small_cap
+    - micro_cap
+- name: investment_style
+  type: enum[]
+  description: Investment approach or style discussed.
+  enumValues:
+    - value
+    - growth
+    - dividend
+    - momentum
+    - index
+    - passive
+    - active
+    - day_trading
+    - swing_trading
+    - long_term_hold
+- name: asset_type
+  type: enum[]
+  description: Type of financial instrument discussed.
+  enumValues:
+    - stock
+    - index
+    - etf
+    - mutual_fund
+    - option
+    - bond
+    - reit
+    - commodity
+    - crypto
+    - cash
+- name: narrative
+  type: string[]
+  description: Investment or market narratives in snake_case (e.g. ai_boom,
+    ev_transition, rate_cuts).
+  enumValues: null
+- name: sentiment
+  type: enum[]
+  description: Directional stance on the stock/market. Omit if neutral or unclear.
+  enumValues:
+    - bullish
+    - bearish
+- name: recommendation
+  type: enum[]
+  description: Analyst or influencer recommendation type.
+  enumValues:
+    - strong_buy
+    - buy
+    - hold
+    - sell
+    - strong_sell

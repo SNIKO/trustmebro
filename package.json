@@ -4,20 +4,20 @@
 	"description": "TrustMeBro CLI app",
 	"type": "module",
 	"bin": {
-		"trustmebro": "dist/cli.js"
+		"trustmebro": "dist/app.js"
 	},
 	"files": [
 		"dist"
 	],
 	"exports": {
-		".": "./dist/index.js"
+		".": "./dist/app.js"
 	},
 	"private": true,
 	"scripts": {
-		"dev": "bun run src/cli.ts",
-		"build": "bun build src/index.ts src/cli.ts --outdir dist --target bun --format esm && (printf '#!/usr/bin/env bun\n' | cat - dist/cli.js > dist/.cli.js) && mv dist/.cli.js dist/cli.js && chmod +x dist/cli.js",
+		"dev": "bun run src/app.ts",
+		"build": "bun build src/app.ts --outdir dist --target bun --format esm && (printf '#!/usr/bin/env bun\n' | cat - dist/app.js > dist/.app.js) && mv dist/.app.js dist/app.js && chmod +x dist/app.js",
 		"lint": "bunx --bun biome lint .",
-		"format": "bunx --bun biome format . --write",
+		"fix": "bunx --bun biome format . --write",
 		"check": "bunx --bun biome check .",
 		"changeset": "bunx --bun changeset",
 		"version-packages": "bunx --bun changeset version",
@@ -30,6 +30,11 @@
 		"typescript": "^5.9.3"
 	},
 	"dependencies": {
-		"greptor": "^0.4.0"
+		"@ai-sdk/openai": "^1.3.0",
+		"@stricli/core": "^1.2.0",
+		"ai": "^4.3.0",
+		"greptor": "^0.4.0",
+		"yaml": "^2.8.1",
+		"zod": "^4.3.5"
 	}
 }

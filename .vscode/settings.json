@@ -1,0 +1,40 @@
+{
+	// Use tabs in this repository (matches biome.json formatter.indentStyle = "tab")
+	"editor.insertSpaces": false,
+	"editor.tabSize": 2,
+
+	// Keep files tidy
+	"files.insertFinalNewline": true,
+	"files.trimTrailingWhitespace": true,
+
+	// Format with Biome
+	"editor.formatOnSave": true,
+	"editor.defaultFormatter": "biomejs.biome",
+	"editor.codeActionsOnSave": {
+		"source.fixAll.biome": "explicit",
+		"source.organizeImports.biome": "explicit"
+	},
+
+	// Ensure TS/JS use Biome for formatting
+	"[typescript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[javascriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+
+	// Prefer the workspace TypeScript version
+	"typescript.tsdk": "node_modules/typescript/lib"
+}
