@@ -1,20 +1,8 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import type { CommandContext } from "@stricli/core";
 
-export interface LocalContext extends CommandContext {
-	readonly process: NodeJS.Process;
-	readonly os: typeof os;
-	readonly fs: typeof fs;
-	readonly path: typeof path;
-}
+// Stricli only needs a process-like object; Node's `process` already matches.
+export type LocalContext = CommandContext;
 
 export function buildContext(process: NodeJS.Process): LocalContext {
-	return {
-		process,
-		os,
-		fs,
-		path,
-	};
+	return { process };
 }

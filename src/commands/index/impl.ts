@@ -1,14 +1,15 @@
+import path from "node:path";
 import { openai } from "@ai-sdk/openai";
 import { createGreptor, type Greptor } from "greptor";
-import {
-	type Config,
-	loadConfig,
-	type SourceId,
-	type TagType,
-} from "../../config.js";
-import type { LocalContext } from "../../context.js";
+import { type Config, loadConfig, type SourceId } from "../../config.js";
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
+
+type TagType = Config["tags"] extends Record<string, infer T>
+	? T extends { type: infer K }
+		? K
+		: never
+	: never;
 
 interface IndexCommandFlags {
 	workspacePath?: string;
@@ -45,12 +46,11 @@ async function createGreptorClient(
 }
 
 export async function index(
-	this: LocalContext,
 	flags: IndexCommandFlags,
 ): Promise<void> {
 	const workspacePath = flags.workspacePath ?? ".";
-	const configPath = this.path.join(workspacePath, "config.yaml");
-	const dataPath = this.path.join(workspacePath, "data");
+	const configPath = path.join(workspacePath, "config.yaml");
+	const dataPath = path.join(workspacePath, "data");
 	const config = await loadConfig(configPath);
 	const greptor = await createGreptorClient(config, dataPath);
 	const sources = buildSources();

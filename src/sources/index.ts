@@ -1,5 +1,5 @@
 import type { Source } from "./types.js";
-import { createYoutubeSource } from "./youtube.js";
+import { createYoutubeSource } from "./youtube/index.js";
 
 export function buildSources(): Source[] {
 	const youtube = createYoutubeSource();

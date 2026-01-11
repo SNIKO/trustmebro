@@ -47,38 +47,39 @@ bun install
 bun run build
 ```
 
-### Create a Config File
+### Create a Wowkspace
 
-Create a YAML config file (e.g., `stocks.yaml`) defining what to fetch:
+Create a folder where you'll store configs and fetched content:
+
+```bash
+mkdir -p ~/stocks
+```
+
+Create a config file `config.yaml` in that folder:
+
 
 ```yaml
-server:
-  port: 3000
-
-stateFile: "~/ai/stocks/.trustmebro-state.yaml" # optional; defaults to <outputFolder>/.trustmebro-state.yaml
-
-outputFolder: "~/ai/stocks/"
 startDate: 2025-12-01
 
 topic: "Stock market, investing, and financial markets"
 
 # Platforms and feeds to track
-platforms:
+sources:
   youtube:
     concurrency: 1
-    channels:
+    publishers:
       - "@everythingmoney"
       - "@JosephCarlsonShow"
       - "@BenFelixCSI"
       - "@AswathDamodaranonValuation"
 
   telegram:
-    channels: []
+    publishers: []
     # Example:
     # - "cryptoinsights"
 
   twitter:
-    accounts: []
+    publishers: []
     # Example:
     # - "elonmusk"
 
@@ -122,29 +123,24 @@ tags:
       - strong_sell
 ```
 
-> `platforms` is the preferred key; existing configs that still use `sources` will continue to work.
-
 ### Run the Fetcher
 
 ```bash
 # Fetch content from all configured platforms/feeds
-trustmebro fetch --config stocks.yaml
+trustmebro index
 
 # Fetch from a specific platform only
-trustmebro fetch --config stocks.yaml --platform youtube
+trustmebro index --source youtube
 
-# Fetch and watch for new content (continuous mode)
-trustmebro watch --config stocks.yaml
-
-# One-time fetch for a specific channel
-trustmebro fetch-channel --platform youtube --id @JosephCarlsonShow --config stocks.yaml
+# Fetch from a specific publisher only
+trustmebro index --source youtube --publisher @JosephCarlsonShow
 ```
 
 ### What Happens Next
 
 TrustMeBro will:
 
-1. **Connect to platforms/feeds** using the channels/accounts in your config
+1. **Connect to sources** using the publishers in your config
 2. **Fetch content** since `startDate` (or from last sync)
 3. **Write to output folder** in Greptor-compatible format
 4. **Track progress** in a tiny YAML state file to avoid duplicates
@@ -153,7 +149,7 @@ TrustMeBro will:
 After the initial fetch, you'll have a structure like:
 
 ```
-~/ai/stocks/
+~/stocks/
   .claude/
     skills/
       search-youtube-telegram-twitter/
@@ -172,42 +168,7 @@ After the initial fetch, you'll have a structure like:
         JosephCarlsonShow/
           2025-12/
             2025-12-15-NVIDIA-Earnings-Analysis.md
-```
-
-## Using with Greptor
-
-TrustMeBro and Greptor are designed to work together:
-
-```typescript
-import { createGreptor } from 'greptor';
-import { openai } from "@ai-sdk/openai";
-
-// Initialize Greptor with your output folder
-const greptor = await createGreptor({
-  baseDir: '~/ai/stocks',
-  topic: 'Stock market, investing, and financial markets',
-  model: openai("gpt-4o-mini"),
-});
-
-// TrustMeBro feeds documents to Greptor
-// This happens automatically after fetching
-await greptor.eat({
-  id: 'dQw4w9WgXcQ',
-  source: 'youtube', // platform
-  publisher: '@JosephCarlsonShow',
-  format: 'text',
-  label: 'NVIDIA Q4 Earnings: AI Boom Continues',
-  content: videoTranscript,
-  creationDate: new Date('2025-12-15'),
-  tags: {
-    channelTitle: 'Joseph Carlson',
-    duration: 1245,
-    views: 45000
-  },
-});
-
-// Generate Claude Code skill for your platforms
-await greptor.createSkill(['youtube', 'telegram', 'twitter']);
+  config.yaml
 ```
 
 ## Searching Your Content
@@ -218,60 +179,60 @@ Once TrustMeBro has fetched and Greptor has indexed your content, you can search
 
 ```bash
 # Find all mentions of a specific ticker
-rg -n -C 6 "ticker=NVDA" ~/ai/stocks/content/processed/
+rg -n -C 6 "ticker=NVDA" content/processed/
 
 # Search for bullish sentiment
-rg -n -C 6 "sentiment=bullish" ~/ai/stocks/content/processed/
+rg -n -C 6 "sentiment=bullish" content/processed/
 
 # Case-insensitive full-text search
-rg -i -n -C 3 "federal reserve" ~/ai/stocks/content/processed/
+rg -i -n -C 3 "federal reserve" content/processed/
 
 # Search within YouTube content only
-rg -n -C 6 "sector=technology" ~/ai/stocks/content/processed/youtube/
+rg -n -C 6 "sector=technology" content/processed/youtube/
 ```
 
 ### Time-Based Searches
 
 ```bash
 # Content from December 2025
-rg -n -C 6 "ticker=TSLA" ~/ai/stocks/content/processed/ --glob "**/2025-12/*.md"
+rg -n -C 6 "ticker=TSLA" content/processed/ --glob "**/2025-12/*.md"
 
 # This month's bullish calls
-rg -n -C 6 "sentiment=bullish" ~/ai/stocks/content/processed/ --glob "**/$(date +%Y-%m)/*.md"
+rg -n -C 6 "sentiment=bullish" content/processed/ --glob "**/$(date +%Y-%m)/*.md"
 
 # Specific YouTuber's content
-rg -n -C 6 "ticker=AAPL" ~/ai/stocks/content/processed/youtube/JosephCarlsonShow/
+rg -n -C 6 "ticker=AAPL" content/processed/youtube/JosephCarlsonShow/
 ```
 
 ### Multi-Tag Filters
 
 ```bash
 # Tech stocks with bullish sentiment
-rg -l "sector=technology" ~/ai/stocks/content/processed/ | xargs rg -n -C 6 "sentiment=bullish"
+rg -l "sector=technology" content/processed/ | xargs rg -n -C 6 "sentiment=bullish"
 
 # Strong buy recommendations for dividend stocks
-rg -l "investment_style=dividend" ~/ai/stocks/content/processed/ | xargs rg -n -C 6 "recommendation=strong_buy"
+rg -l "investment_style=dividend" content/processed/ | xargs rg -n -C 6 "recommendation=strong_buy"
 
 # AI narrative with specific tickers
-rg -n -C 6 "narrative=.*ai" ~/ai/stocks/content/processed/ | rg "ticker=NVDA\|ticker=.*,NVDA"
+rg -n -C 6 "narrative=.*ai" content/processed/ | rg "ticker=NVDA\|ticker=.*,NVDA"
 ```
 
 ### Discovery & Analysis
 
 ```bash
 # List all tickers mentioned
-rg -o "ticker=[^\n]+" ~/ai/stocks/content/processed/ | cut -d= -f2 | tr ',' '\n' | sort -u
+rg -o "ticker=[^\n]+" content/processed/ | cut -d= -f2 | tr ',' '\n' | sort -u
 
 # Count sentiment distribution
-rg -o "sentiment=[^\n]+" ~/ai/stocks/content/processed/ | cut -d= -f2 | sort | uniq -c | sort -rn
+rg -o "sentiment=[^\n]+" content/processed/ | cut -d= -f2 | sort | uniq -c | sort -rn
 
 # Top 20 most discussed companies
-rg -o "company=[^\n]+" ~/ai/stocks/content/processed/ | cut -d= -f2 | tr ',' '\n' | sort | uniq -c | sort -rn | head -20
+rg -o "company=[^\n]+" content/processed/ | cut -d= -f2 | tr ',' '\n' | sort | uniq -c | sort -rn | head -20
 
 # Track narrative evolution over time
 for month in 2025-{10..12}; do
   echo "=== $month ==="
-  rg -o "narrative=[^\n]+" ~/ai/stocks/content/processed/ --glob "**/$month/*.md" | cut -d= -f2 | tr ',' '\n' | sort | uniq -c | sort -rn | head -5
+  rg -o "narrative=[^\n]+" content/processed/ --glob "**/$month/*.md" | cut -d= -f2 | tr ',' '\n' | sort | uniq -c | sort -rn | head -5
 done
 ```
 
@@ -281,32 +242,7 @@ The real power comes when you let AI agents search your indexed content:
 
 ### Claude Code Skill (Auto-Generated)
 
-TrustMeBro + Greptor automatically generate a Claude Code skill with search instructions:
-
-```markdown
-# Search YouTube-Telegram-Twitter Skill
-
-Use this skill when researching stocks, market sentiment, or investment insights.
-
-## Available Sources
-- YouTube: Financial channels (@JosephCarlsonShow, @BenFelixCSI, etc.)
-- Telegram: Investment communities
-- Twitter: Market commentators and analysts
-
-## Search Patterns
-
-### By Ticker
-rg -n -C 6 "ticker=AAPL" content/processed/
-
-### By Sentiment
-rg -n -C 6 "sentiment=bullish" content/processed/
-
-### By Recommendation
-rg -n -C 6 "recommendation=strong_buy" content/processed/
-
-### Combined Filters
-rg -l "ticker=TSLA" content/processed/ | xargs rg -n -C 6 "sentiment=bearish"
-```
+TrustMeBro automatically generates a Claude Code skill with search instructions based on your config and tag schema. The skill is saved under:
 
 ### Example Agent Queries
 
@@ -324,101 +260,6 @@ Once set up, you can ask Claude (or any agent with ripgrep access):
 
 The agent will use ripgrep to search your indexed content and synthesize insights from multiple platforms/feeds.
 
-## Configuration Reference
-
-### Server Settings
-
-```yaml
-server:
-  port: 3000              # HTTP server port for webhooks/API
-```
-
-### Output
-
-```yaml
-outputFolder: "~/ai/stocks/"  # Where to write fetched content
-startDate: 2025-12-01         # Fetch content from this date onward
-stateFile: "~/ai/stocks/.trustmebro-state.yaml" # optional; defaults under outputFolder
-```
-
-### Platforms
-
-#### YouTube
-
-```yaml
-platforms:
-  youtube:
-    concurrency: 1      # Number of parallel fetch workers
-    channels:
-      - "@channelhandle"
-```
-
-Fetches video transcripts with `yt-dlp` (no YouTube API key needed). Make sure `yt-dlp` is installed and on your `PATH`.
-
-#### Telegram
-
-```yaml
-platforms:
-  telegram:
-    channels:
-      - "channelname"   # Public channel username
-```
-
-Fetches messages from public Telegram channels. Requires `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`.
-
-#### Twitter
-
-```yaml
-platforms:
-  twitter:
-    accounts:
-      - "username"      # Twitter handle without @
-```
-
-Fetches tweets and threads. Requires `TWITTER_BEARER_TOKEN`.
-
-### Tag Schema
-
-Define your domain-specific tags for better indexing:
-
-```yaml
-tags:
-  ticker:
-    type: string[]
-    description: "Stock tickers, UPPERCASE"
-
-  sentiment:
-    type: enum[]
-    description: "Market sentiment"
-    values:
-      - bullish
-      - bearish
-      - neutral
-
-  # Add more tags as needed
-```
-
-Tags are used by Greptor to structure chunks for grep-ability.
-
-## Environment Variables
-
-Create a `.env` file in your project root:
-
-```bash
-# Telegram API (get from https://my.telegram.org)
-TELEGRAM_API_ID=your_id
-TELEGRAM_API_HASH=your_hash
-
-# Twitter API v2
-TWITTER_BEARER_TOKEN=your_token
-
-# OpenAI for Greptor processing
-OPENAI_API_KEY=your_key
-
-# Optional override for Greptor LLM
-GREPTOR_MODEL=gpt-5-mini
-```
-
 ## Use Cases
 
 ### Investment Research
@@ -429,131 +270,14 @@ Track YouTube finance channels, Reddit investing communities, and Twitter analys
 - Track analyst recommendations over time
 - Research specific tickers or sectors
 
-### Market Intelligence
+### Crypto Analysis
 
-Stay updated on:
-- Macro trends from economics channels
-- Sector rotations from market commentators
-- Earnings reactions from the community
-- Policy impacts from finance Twitter
-
-### Portfolio Management
-
-Combine with Yahoo Finance MCP and personal data:
-- Get sentiment data for your holdings
-- Research new investment ideas mentioned across platforms
-- Track narrative shifts that might affect your positions
-- Automate monthly portfolio reviews with agent-generated reports
-
-## Advanced Patterns
-
-### Scheduled Fetching
-
-Use cron to fetch new content regularly:
-
-```bash
-# Fetch every 6 hours
-0 */6 * * * cd ~/git/trustmebro && ./trustmebro fetch --config ~/ai/stocks.yaml
-```
-
-### Multi-Topic Setup
-
-Organize multiple research areas:
-
-```
-~/ai/
-  stocks/
-    config: stocks.yaml
-  crypto/
-    config: crypto.yaml
-  tech/
-    config: tech.yaml
-```
-
-Each with its own config, platforms, and tag schema.
-
-### Custom Processing Pipeline
-
-Hook into the fetch → index workflow:
-
-```typescript
-// custom-pipeline.ts
-import { fetchYouTube } from 'trustmebro';
-import { createGreptor } from 'greptor';
-
-const content = await fetchYouTube('@JosephCarlsonShow', { since: '2025-12-01' });
-
-// Custom pre-processing
-const cleaned = removeAds(content);
-
-// Feed to Greptor
-await greptor.eat(cleaned);
-```
-
-## Roadmap
-
-- [ ] Reddit support (via API)
-- [ ] Discord channel fetching
-- [ ] Newsletter/blog RSS feeds
-- [ ] Podcast transcript fetching (Spotify, Apple Podcasts)
-- [ ] Web scraping for articles
-- [ ] Real-time streaming mode (WebSockets)
-- [ ] Custom fetcher plugins
-- [ ] Cloud deployment templates (Docker, Railway, Fly.io)
-
-## FAQ
-
-**Q: How much does it cost to run?**
-
-Fetching is free (just API limits). LLM processing costs depend on volume:
-- ~$0.01-0.05 per YouTube video (using GPT-4o-mini)
-- ~$0.001-0.01 per tweet/post
-- Estimate ~$10-30/month for moderate usage (50-100 videos, 1000 posts)
-
-**Q: Can I use this without Greptor?**
-
-Yes! TrustMeBro writes raw Markdown files immediately, which you can search/read without Greptor. But Greptor adds:
-- LLM-powered cleaning and structuring
-- Semantic chunking for better context
-- Tag extraction for precise filtering
-- Claude Code skill generation
-
-**Q: What if I don't have API keys?**
-
-Some platforms work without keys:
-- YouTube: Transcript download (no key needed, but rate-limited)
-- Reddit: Public scraping (no key, but fragile)
-
-For production use, official APIs are recommended.
-
-**Q: How do I handle API rate limits?**
-
-TrustMeBro tracks fetch progress in the state file and resumes where it left off. If you hit rate limits:
-- Reduce `concurrency` in config
-- Add delays between requests
-- Spread fetches across multiple API keys (advanced)
-
-**Q: Is this legal?**
-
-You're responsible for complying with each platform's Terms of Service:
-- YouTube: ✅ Transcripts are public data
-- Twitter: ✅ Public tweets (respect rate limits)
-- Telegram: ✅ Public channels
-
-Don't scrape private content or violate platform policies.
-
-## Contributing
-
-Contributions welcome! Areas of interest:
-- New source integrations (Reddit, Discord, etc.)
-- Better error handling and retry logic
-- Performance optimizations
-- Documentation improvements
+Follow crypto influencers, Telegram channels, and Twitter accounts to:
+- Gauge market sentiment on coins/tokens
+- Identify trending projects and narratives
+- Monitor regulatory news and community reactions
+- Analyze technical discussions and developer updates
 
 ## License
 
 MIT © Sergii Vashchyshchuk
-
----
-
-**TrustMeBro**: Because your AI agent should trust the data you feed it, bro. 🤝

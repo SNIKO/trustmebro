@@ -25,13 +25,13 @@ export const indexCommand = buildCommand({
 				kind: "parsed",
 				parse: String,
 				optional: true,
-				brief: "Fetch only the channel with this id",
+				brief: "Fetch only the publisher with this id",
 			},
 		},
 	},
 	docs: {
 		brief: "Index items once from configured sources",
 		fullDescription:
-			"Runs a single pass over configured sources. Use --source to limit to one provider and --channel to target a single channel.",
+			"Runs a single pass over configured sources. Use --source to limit to one provider and --publisher to target a single publisher.",
 	},
 });
