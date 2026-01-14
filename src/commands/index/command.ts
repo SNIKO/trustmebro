@@ -30,8 +30,8 @@ export const indexCommand = buildCommand({
 		},
 	},
 	docs: {
-		brief: "Index items once from configured sources",
+		brief: "Continuously index items from configured sources",
 		fullDescription:
-			"Runs a single pass over configured sources. Use --source to limit to one provider and --publisher to target a single publisher.",
+			"Runs continuously, polling each configured source on its poll interval. Use --source to limit to one provider and --publisher to target a single publisher.",
 	},
 });

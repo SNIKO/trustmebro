@@ -5,11 +5,12 @@ import { type Config, loadConfig, type SourceId } from "../../config.js";
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
 
-type TagType = Config["tags"] extends Record<string, infer T>
-	? T extends { type: infer K }
-		? K
-		: never
-	: never;
+type TagType =
+	Config["tags"] extends Record<string, infer T>
+		? T extends { type: infer K }
+			? K
+			: never
+		: never;
 
 interface IndexCommandFlags {
 	workspacePath?: string;
@@ -45,9 +46,7 @@ async function createGreptorClient(
 	});
 }
 
-export async function index(
-	flags: IndexCommandFlags,
-): Promise<void> {
+export async function index(flags: IndexCommandFlags): Promise<void> {
 	const workspacePath = flags.workspacePath ?? ".";
 	const configPath = path.join(workspacePath, "config.yaml");
 	const dataPath = path.join(workspacePath, "data");
@@ -55,6 +54,12 @@ export async function index(
 	const greptor = await createGreptorClient(config, dataPath);
 	const sources = buildSources();
 	const context: SourceContext = { config, workspacePath, greptor };
+
+	// Collect all sources and publishers we'll be processing
+	const sourcesToProcess: Array<{
+		source: (typeof sources)[number];
+		publisherIds: string[];
+	}> = [];
 
 	for (const source of sources) {
 		if (flags.source && source.sourceId !== flags.source) {
@@ -70,6 +75,13 @@ export async function index(
 			? [flags.publisher]
 			: sourceConfig.publishers;
 
+		if (publisherIds.length > 0) {
+			sourcesToProcess.push({ source, publisherIds });
+		}
+	}
+
+	// Process each source
+	for (const { source, publisherIds } of sourcesToProcess) {
 		for (const publisherId of publisherIds) {
 			console.log(`[${source.sourceId}] ${publisherId}: starting run`);
 			await source.runOnce(context, publisherId);
