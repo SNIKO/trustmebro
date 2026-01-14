@@ -1,5 +1,5 @@
 import path from "node:path";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createGreptor, type Greptor } from "greptor";
 import { type Config, loadConfig, type SourceId } from "../../config.js";
 import { buildSources } from "../../sources/index.js";
@@ -38,9 +38,11 @@ async function createGreptorClient(
 		baseDir: basePath,
 		topic: config.topic,
 		// TODO: Align greptor + AI SDK model types during refactor.
-		model: openai("gpt-5-mini") as unknown as Parameters<
-			typeof createGreptor
-		>[0]["model"],
+		model: createOpenAICompatible({
+			baseURL: "https://integrate.api.nvidia.com/v1",
+			name: "moonshotai",
+			apiKey: process.env.NVIDIA_API_KEY,
+		}).chatModel("z-ai/glm4.7"),
 		workers: 1,
 		tagSchema,
 	});
