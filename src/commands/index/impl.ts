@@ -4,6 +4,14 @@ import { createGreptor, type Greptor } from "greptor";
 import { type Config, loadConfig, type SourceId } from "../../config.js";
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
+import {
+	logGreptorDocumentCompleted as logDocumentProcessingCompleted,
+	logGreptorError,
+	logger,
+	logGreptorRunCompleted as logProcessingRunCompleted,
+	logGreptorRunStarted as logProcessingRunStarted,
+	logSourceStart,
+} from "../../utils/logger.js";
 
 type TagType =
 	Config["tags"] extends Record<string, infer T>
@@ -45,6 +53,12 @@ async function createGreptorClient(
 		}).chatModel("z-ai/glm4.7"),
 		workers: 1,
 		tagSchema,
+		hooks: {
+			onProcessingRunStarted: logProcessingRunStarted,
+			onDocumentProcessingCompleted: logDocumentProcessingCompleted,
+			onProcessingRunCompleted: logProcessingRunCompleted,
+			onError: logGreptorError,
+		},
 	});
 }
 
@@ -85,11 +99,10 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 	// Process each source
 	for (const { source, publisherIds } of sourcesToProcess) {
 		for (const publisherId of publisherIds) {
-			console.log(`[${source.sourceId}] ${publisherId}: starting run`);
+			logSourceStart({ sourceId: source.sourceId, publisherId });
 			await source.runOnce(context, publisherId);
-			console.log(`[${source.sourceId}] ${publisherId}: run complete`);
 		}
 	}
 
-	console.log("Indexing run complete");
+	logger.info("Indexing run complete");
 }

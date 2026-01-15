@@ -1,10 +1,11 @@
 import type { Source } from "./types.js";
 import { createYoutubeSource } from "./youtube/index.js";
+import { logger } from "../utils/logger.js";
 
 export function buildSources(): Source[] {
 	const youtube = createYoutubeSource();
 	if (!youtube) {
-		console.warn("Youtube source can't be initialized, skipping");
+		logger.warn("YouTube source can't be initialized, skipping");
 	}
 
 	return [

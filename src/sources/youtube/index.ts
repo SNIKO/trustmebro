@@ -1,3 +1,10 @@
+import {
+	logger,
+	logItemResult,
+	logSourceComplete,
+	logSourceFound,
+	type SourceLogContext,
+} from "../../utils/logger.js";
 import type { Source, SourceContext } from "../types.js";
 import { hasYtDlp, listVideos } from "./fetch.js";
 import { processVideo } from "./process.js";
@@ -5,7 +12,7 @@ import { YouTubeState } from "./state.js";
 
 export function createYoutubeSource(): Source | null {
 	if (!hasYtDlp()) {
-		console.error(
+		logger.error(
 			"[youtube] yt-dlp is required for youtube source. Install it from https://github.com/yt-dlp/yt-dlp#installation",
 		);
 		return null;
@@ -15,6 +22,10 @@ export function createYoutubeSource(): Source | null {
 		sourceId: "youtube",
 
 		async runOnce(context: SourceContext, publisherId: string): Promise<void> {
+			const logContext = {
+				sourceId: "youtube",
+				publisherId,
+			} as SourceLogContext;
 			const state = new YouTubeState(context.workspacePath);
 			await state.load();
 
@@ -23,12 +34,12 @@ export function createYoutubeSource(): Source | null {
 				(v) => v.id && !state.contains(publisherId, v.id),
 			);
 
-			console.log(
-				`[youtube] ${publisherId}: found ${videos.length} videos, ${newVideos.length} new to index`,
-			);
+			logSourceFound(logContext, videos.length, newVideos.length);
 
 			for (const entry of newVideos) {
 				if (!entry.id) continue;
+
+				const title = entry.title ?? entry.id;
 
 				const result = await processVideo({
 					context,
@@ -39,25 +50,36 @@ export function createYoutubeSource(): Source | null {
 
 				switch (result.status) {
 					case "indexed":
-						console.log(
-							`[youtube] indexed ${result.videoId}: ${result.title ?? "(no title)"}`,
-						);
+						logItemResult({
+							context: logContext,
+							status: "fetched",
+							title: result.title ?? title,
+						});
 						break;
 					case "skipped":
-						console.log(
-							`[youtube] skipped ${result.videoId}: ${result.reason ?? "unknown reason"}`,
-						);
+						logItemResult({
+							context: logContext,
+							status: "skipped",
+							title: result.title ?? title,
+							reason: result.reason ?? "unknown reason",
+						});
 						if (result.reason === "before-start-date") {
+							logSourceComplete(logContext, "reached start date");
 							return;
 						}
 						break;
 					case "error":
-						console.warn(
-							`[youtube] failed ${result.videoId}: ${result.reason ?? "unknown error"}`,
-						);
+						logItemResult({
+							context: logContext,
+							status: "error",
+							title: result.title ?? title,
+							reason: result.reason ?? "unknown error",
+						});
 						break;
 				}
 			}
+
+			logSourceComplete(logContext);
 		},
 	};
 }
