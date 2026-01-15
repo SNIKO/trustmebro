@@ -47,85 +47,73 @@ bun install
 bun run build
 ```
 
-### Create a Wowkspace
+### Create a Workspace
 
 Create a folder where you'll store configs and fetched content:
 
 ```bash
 mkdir -p ~/stocks
+cd ~/stocks
 ```
 
-Create a config file `config.yaml` in that folder:
+Copy the template config and customize it:
 
-
-```yaml
-startDate: 2025-12-01
-
-topic: "Stock market, investing, and financial markets"
-
-# Platforms and feeds to track
-sources:
-  youtube:
-    concurrency: 1
-    publishers:
-      - "@everythingmoney"
-      - "@JosephCarlsonShow"
-      - "@BenFelixCSI"
-      - "@AswathDamodaranonValuation"
-
-  telegram:
-    publishers: []
-    # Example:
-    # - "cryptoinsights"
-
-  twitter:
-    publishers: []
-    # Example:
-    # - "elonmusk"
-
-# Tag schema for Greptor indexing
-tags:
-  ticker:
-    type: string[]
-    description: "Stock tickers, UPPERCASE (e.g. AAPL, TSLA)"
-
-  company:
-    type: string[]
-    description: "Company names in snake_case (e.g. apple, tesla)"
-
-  sector:
-    type: enum[]
-    description: "GICS sector classification"
-    values:
-      - technology
-      - healthcare
-      - financials
-      - consumer_discretionary
-      - energy
-      # ... add more sectors
-
-  sentiment:
-    type: enum[]
-    description: "Market sentiment"
-    values:
-      - bullish
-      - bearish
-      - neutral
-
-  recommendation:
-    type: enum[]
-    description: "Investment recommendation"
-  values:
-      - strong_buy
-      - buy
-      - hold
-      - sell
-      - strong_sell
+```bash
+cp /path/to/trustmebro/config.template.yaml ./config.yaml
 ```
+
+See [config.template.yaml](config.template.yaml) for a fully documented configuration with inline comments.
+
+### Configure the Model
+
+TrustMeBro uses an LLM (via [Greptor](https://github.com/greptorio/greptor)) to process and tag content. You'll need to:
+
+1. **Choose a provider** from the [AI SDK ecosystem](https://sdk.vercel.ai/providers/ai-sdk-providers):
+   - `@ai-sdk/openai` - OpenAI (GPT-4, GPT-4o, etc.)
+   - `@ai-sdk/anthropic` - Anthropic (Claude)
+   - `@ai-sdk/groq` - Groq (fast inference)
+   - `@ai-sdk/openai-compatible` - OpenAI-compatible endpoints (NVIDIA NIM, OpenRouter, etc.)
+   - And [many more](https://sdk.vercel.ai/providers/ai-sdk-providers)...
+
+2. **Install the provider package**:
+   ```bash
+   bun add @ai-sdk/openai  # or your chosen provider
+   ```
+
+3. **Get an API key** from your provider and set it as an environment variable:
+   ```bash
+   export OPENAI_API_KEY="sk-..."
+   # or add to ~/.bashrc, ~/.zshrc, etc.
+   ```
+
+4. **Configure in config.yaml**:
+   ```yaml
+   model:
+     provider: "@ai-sdk/openai"
+     model: "gpt-4o-mini"
+     options:
+       apiKey: "env.OPENAI_API_KEY"  # References environment variable
+   ```
+
+**Environment variable syntax:** Use `"env.VARIABLE_NAME"` in your config to reference environment variables. This keeps secrets out of your config files.
+
+### Configure Sources and Tags
+
+Edit your `config.yaml` to specify:
+
+- **`startDate`**: Fetch content from this date forward (YYYY-MM-DD)
+- **`topic`**: High-level description for context (used by the LLM)
+- **`sources.youtube.publishers`**: List of YouTube channel handles (with `@` prefix)
+- **`tags`**: Structured metadata to extract (tickers, sentiment, sectors, etc.)
+
+See [config.template.yaml](config.template.yaml) for detailed documentation on all options.
 
 ### Run the Fetcher
 
 ```bash
+# Navigate to your workspace directory
+cd ~/stocks
+
 # Fetch content from all configured platforms/feeds
 trustmebro index
 

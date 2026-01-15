@@ -1,7 +1,11 @@
 import path from "node:path";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createGreptor, type Greptor } from "greptor";
-import { type Config, loadConfig, type SourceId } from "../../config.js";
+import {
+	type Config,
+	loadConfig,
+	type ModelConfig,
+	type SourceId,
+} from "../../config.js";
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
 import {
@@ -19,6 +23,58 @@ type TagType =
 			? K
 			: never
 		: never;
+
+const PROVIDER_EXPORTS: Record<string, string> = {
+	"@ai-sdk/amazon-bedrock": "createAmazonBedrock",
+	"@ai-sdk/anthropic": "createAnthropic",
+	"@ai-sdk/azure": "createAzure",
+	"@ai-sdk/cerebras": "createCerebras",
+	"@ai-sdk/cohere": "createCohere",
+	"@ai-sdk/deepinfra": "createDeepInfra",
+	"@ai-sdk/google": "createGoogleGenerativeAI",
+	"@ai-sdk/google-vertex": "createVertex",
+	"@ai-sdk/groq": "createGroq",
+	"@ai-sdk/mistral": "createMistral",
+	"@ai-sdk/openai": "createOpenAI",
+	"@ai-sdk/openai-compatible": "createOpenAICompatible",
+	"@ai-sdk/perplexity": "createPerplexity",
+	"@ai-sdk/togetherai": "createTogetherAI",
+	"@ai-sdk/xai": "createXai",
+	"@openrouter/ai-sdk-provider": "createOpenRouter",
+};
+
+function resolveEnvVars(obj: Record<string, unknown>): Record<string, unknown> {
+	const resolved: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(obj)) {
+		if (typeof value === "string" && value.startsWith("env.")) {
+			const envVar = value.slice(4);
+			resolved[key] = process.env[envVar];
+		} else if (
+			typeof value === "object" &&
+			value !== null &&
+			!Array.isArray(value)
+		) {
+			resolved[key] = resolveEnvVars(value as Record<string, unknown>);
+		} else {
+			resolved[key] = value;
+		}
+	}
+	return resolved;
+}
+
+async function createModel(modelConfig: ModelConfig) {
+	const exportName = PROVIDER_EXPORTS[modelConfig.provider];
+	if (!exportName) {
+		throw new Error(`Unknown provider: ${modelConfig.provider}`);
+	}
+	const mod = await import(modelConfig.provider);
+	const factory = mod[exportName];
+	const options = modelConfig.options
+		? resolveEnvVars(modelConfig.options)
+		: {};
+	const sdk = factory(options);
+	return sdk.chatModel(modelConfig.model);
+}
 
 interface IndexCommandFlags {
 	workspacePath?: string;
@@ -45,12 +101,7 @@ async function createGreptorClient(
 	return createGreptor({
 		baseDir: basePath,
 		topic: config.topic,
-		// TODO: Align greptor + AI SDK model types during refactor.
-		model: createOpenAICompatible({
-			baseURL: "https://integrate.api.nvidia.com/v1",
-			name: "moonshotai",
-			apiKey: process.env.NVIDIA_API_KEY,
-		}).chatModel("z-ai/glm4.7"),
+		model: await createModel(config.model),
 		workers: 1,
 		tagSchema,
 		hooks: {

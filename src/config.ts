@@ -43,9 +43,18 @@ const publisherConfigSchema = z.object({
 		.default(60),
 });
 
+const modelConfigSchema = z.object({
+	provider: z.string(),
+	model: z.string(),
+	options: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type ModelConfig = z.infer<typeof modelConfigSchema>;
+
 const configSchema = z.object({
 	startDate: z.coerce.date(),
 	topic: z.string(),
+	model: modelConfigSchema,
 	tags: z.record(z.string(), configTagSchema).optional(),
 	sources: z.object({
 		youtube: publisherConfigSchema.optional(),

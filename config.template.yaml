@@ -1,0 +1,215 @@
+# TrustMeBro Configuration Template
+# Copy this file to your workspace directory and customize for your use case
+
+# ============================================================================
+# START DATE
+# ============================================================================
+# Fetch content published on or after this date (YYYY-MM-DD format)
+startDate: 2025-12-01
+
+# ============================================================================
+# TOPIC
+# ============================================================================
+# High-level description of what you're tracking. Used by Greptor's LLM
+# to understand context when extracting tags and summarizing content.
+topic: "Stock market, investing, and financial markets (equities, ETFs, portfolio management, macro economics)"
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+# Configure the LLM provider for content processing (tagging, summarization).
+# TrustMeBro uses Greptor which supports AI SDK providers.
+model:
+  # Provider package name - must be installed via npm/bun
+  # Supported providers:
+  #   - @ai-sdk/openai
+  #   - @ai-sdk/anthropic
+  #   - @ai-sdk/openai-compatible
+  #   - @ai-sdk/groq
+  #   - @ai-sdk/google
+  #   - @ai-sdk/mistral
+  #   - @ai-sdk/cohere
+  #   - @ai-sdk/cerebras
+  #   - @ai-sdk/deepinfra
+  #   - @ai-sdk/xai
+  #   - @ai-sdk/perplexity
+  #   - @ai-sdk/togetherai
+  #   - @ai-sdk/amazon-bedrock
+  #   - @ai-sdk/azure
+  #   - @ai-sdk/google-vertex
+  #   - @openrouter/ai-sdk-provider
+  provider: "@ai-sdk/openai-compatible"
+
+  # Model identifier (format varies by provider)
+  model: "z-ai/glm4.7"
+
+  # Provider-specific options (varies by provider)
+  # Use "env.VARIABLE_NAME" to reference environment variables
+  options:
+    # OpenAI Compatible example (NVIDIA NIM):
+    baseURL: "https://integrate.api.nvidia.com/v1"
+    name: "nvidia"
+    apiKey: "env.NVIDIA_API_KEY"
+
+# ============================================================================
+# SOURCES
+# ============================================================================
+# Configure which platforms and publishers/channels/accounts to track
+sources:
+  # YouTube channels
+  youtube:
+    # List of channel handles (with @ prefix) or channel IDs
+    publishers:
+      - "@everythingmoney"
+      - "@JosephCarlsonShow"
+      - "@BenFelixCSI"
+      - "@AswathDamodaranonValuation"
+      # Add more channels...
+
+    # How often to check for new videos (in minutes)
+    pollIntervalMinutes: 60
+
+  # Telegram channels (coming soon)
+  telegram:
+    publishers: []
+    # Example:
+    # - "cryptoinsights"
+    # - "stockmarket_signals"
+    pollIntervalMinutes: 60
+
+  # Twitter accounts (coming soon)
+  twitter:
+    publishers: []
+    # Example:
+    # - "elonmusk"
+    # - "cathiedwood"
+    pollIntervalMinutes: 60
+
+# ============================================================================
+# TAG SCHEMA
+# ============================================================================
+# Define structured metadata that Greptor's LLM will extract from content.
+# Tags enable powerful filtering and analysis via ripgrep.
+#
+# Each tag has:
+#   - name: The tag identifier (used in searches like "ticker=AAPL")
+#   - type: Data type (string, number, boolean, enum, or array variants)
+#   - description: Instructions for the LLM on what to extract
+#   - values: (enum types only) Allowed values
+tags:
+  # Stock tickers mentioned in the content
+  ticker:
+    type: string[] # Array of strings
+    description: "Canonical stock tickers, UPPERCASE only (e.g. AAPL, TSLA, MSFT, SPY)."
+
+  # Company names mentioned
+  company:
+    type: string[]
+    description: "Canonical company names in snake_case (e.g. apple, tesla, microsoft)."
+
+  # GICS sector classification
+  sector:
+    type: enum[] # Array of predefined values
+    description: "GICS sector classification for stocks/companies discussed."
+    values:
+      - technology
+      - healthcare
+      - financials
+      - consumer_discretionary
+      - consumer_staples
+      - energy
+      - utilities
+      - industrials
+      - materials
+      - real_estate
+      - communication_services
+
+  # Specific industry/sub-sector
+  industry:
+    type: string[]
+    description: "Specific industry/sub-sector in snake_case (e.g. semiconductors, biotech, banking, ev_manufacturing)."
+
+  # Market cap category
+  market_cap:
+    type: enum[]
+    description: "Market capitalization category of the company."
+    values:
+      - mega_cap
+      - large_cap
+      - mid_cap
+      - small_cap
+      - micro_cap
+
+  # Investment style/approach
+  investment_style:
+    type: enum[]
+    description: "Investment approach or style discussed."
+    values:
+      - value
+      - growth
+      - dividend
+      - momentum
+      - index
+      - passive
+      - active
+      - day_trading
+      - swing_trading
+      - long_term_hold
+
+  # Asset type
+  asset_type:
+    type: enum[]
+    description: "Type of financial instrument discussed."
+    values:
+      - stock
+      - index
+      - etf
+      - mutual_fund
+      - option
+      - bond
+      - reit
+      - commodity
+      - crypto
+      - cash
+
+  # Investment narratives
+  narrative:
+    type: string[]
+    description: "Investment or market narratives in snake_case (e.g. ai_boom, ev_transition, rate_cuts)."
+
+  # Bullish or bearish sentiment
+  sentiment:
+    type: enum[]
+    description: "Directional stance on the stock/market. Omit if neutral or unclear."
+    values:
+      - bullish
+      - bearish
+
+  # Investment recommendation
+  recommendation:
+    type: enum[]
+    description: "Analyst or influencer recommendation type."
+    values:
+      - strong_buy
+      - buy
+      - hold
+      - sell
+      - strong_sell
+# ============================================================================
+# TAG TYPE REFERENCE
+# ============================================================================
+# Available tag types:
+#   - string       Single text value
+#   - string[]     Array of text values
+#   - number       Single numeric value
+#   - number[]     Array of numeric values
+#   - boolean      True/false flag
+#   - date         ISO date string
+#   - enum         Single value from predefined list (requires 'values' field)
+#   - enum[]       Array of values from predefined list (requires 'values' field)
+#
+# Tips:
+#   - Use enum/enum[] for standardized values (easier to search)
+#   - Use string/string[] for open-ended values (more flexible)
+#   - Array types allow multiple tags per document
+#   - Keep descriptions clear and specific for better LLM extraction
