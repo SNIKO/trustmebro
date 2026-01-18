@@ -1,4 +1,4 @@
-import { statusBar } from "../../utils/status-bar.js";
+import { statusBar } from "../../ui/status-bar.js";
 import type { SourceContext } from "../types.js";
 import { buildVideoUrl, fetchTranscript, fetchVideoDetails } from "./fetch.js";
 import { ingestVideo } from "./ingest.js";
@@ -20,8 +20,8 @@ export async function processVideo(args: {
 
 	const fetchKey = `youtube:${publisherId}:${videoId}`;
 	statusBar.addFetchingItem(fetchKey, {
-		source: "youtube",
-		publisher: publisherId,
+		sourceId: "youtube",
+		publisherId: publisherId,
 		title: entry.title ?? videoId,
 	});
 
@@ -38,8 +38,8 @@ export async function processVideo(args: {
 
 		statusBar.removeFetchingItem(fetchKey);
 		statusBar.addFetchingItem(fetchKey, {
-			source: "youtube",
-			publisher: publisherId,
+			sourceId: "youtube",
+			publisherId: publisherId,
 			title: details.title ?? videoId,
 		});
 

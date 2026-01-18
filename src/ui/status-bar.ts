@@ -1,26 +1,24 @@
 import pc from "picocolors";
-
-export type StatusBarStats = {
-	queue: number;
-	inputTokens: number;
-	outputTokens: number;
-	totalTokens: number;
-};
+import type { SourceId } from "../config.js";
+import { getSourceLogo } from "./source-styles.js";
 
 export type StatusBarWorkItem = {
-	source: string;
-	publisher?: string;
+	sourceId: SourceId;
+	publisherId?: string;
 	title: string;
 };
-
-type WorkKey = string;
 
 export class StatusBar {
 	private frame = 0;
 	private timer: ReturnType<typeof setInterval> | undefined;
-	private fetching: Array<{ key: WorkKey; item: StatusBarWorkItem }> = [];
-	private indexing: Array<{ key: WorkKey; item: StatusBarWorkItem }> = [];
-	private stats: StatusBarStats = {
+	private fetching: Array<{ key: string; item: StatusBarWorkItem }> = [];
+	private indexing: Array<{ key: string; item: StatusBarWorkItem }> = [];
+	private listing: Array<{
+		key: string;
+		sourceId: SourceId;
+		publisherId: string;
+	}> = [];
+	private stats = {
 		queue: 0,
 		inputTokens: 0,
 		outputTokens: 0,
@@ -28,17 +26,7 @@ export class StatusBar {
 	};
 	private spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 	private isRunning = false;
-	private startTime = Date.now();
 	private lastRenderLines = 0;
-
-	constructor() {
-		// Hide cursor
-		process.stdout.write("\x1b[?25l");
-		// Restore cursor on exit
-		process.on("exit", () => {
-			process.stdout.write("\x1b[?25h\n");
-		});
-	}
 
 	start() {
 		if (this.isRunning) return;
@@ -57,24 +45,6 @@ export class StatusBar {
 		this.clearRenderedBlock();
 	}
 
-	setFetchingItems(items: StatusBarWorkItem[]) {
-		this.fetching = items.map((item) => ({
-			key: this.defaultKey(item),
-			item,
-		}));
-		this.ensureRunning();
-		this.render();
-	}
-
-	setIndexingItems(items: StatusBarWorkItem[]) {
-		this.indexing = items.map((item) => ({
-			key: this.defaultKey(item),
-			item,
-		}));
-		this.ensureRunning();
-		this.render();
-	}
-
 	addFetchingItem(key: string, item: StatusBarWorkItem) {
 		this.fetching.push({ key, item });
 		this.ensureRunning();
@@ -82,9 +52,7 @@ export class StatusBar {
 	}
 
 	removeFetchingItem(key: string) {
-		const idx = this.fetching.findIndex((x) => x.key === key);
-		if (idx >= 0) this.fetching.splice(idx, 1);
-		this.render();
+		this.removeItem(this.fetching, key);
 	}
 
 	addIndexingItem(key: string, item: StatusBarWorkItem) {
@@ -94,12 +62,29 @@ export class StatusBar {
 	}
 
 	removeIndexingItem(key: string) {
-		const idx = this.indexing.findIndex((x) => x.key === key);
-		if (idx >= 0) this.indexing.splice(idx, 1);
+		this.removeItem(this.indexing, key);
+	}
+
+	addListingItem(key: string, sourceId: SourceId, publisherId: string) {
+		this.listing.push({ key, sourceId, publisherId });
+		this.ensureRunning();
 		this.render();
 	}
 
-	updateStats(stats: Partial<StatusBarStats>) {
+	removeListingItem(key: string) {
+		this.removeItem(this.listing, key);
+	}
+
+	private removeItem(
+		list: typeof this.fetching | typeof this.indexing | typeof this.listing,
+		key: string,
+	) {
+		const idx = list.findIndex((x) => x.key === key);
+		if (idx >= 0) list.splice(idx, 1);
+		this.render();
+	}
+
+	updateStats(stats: Partial<typeof this.stats>) {
 		this.stats = { ...this.stats, ...stats };
 		this.ensureRunning();
 		this.render();
@@ -132,11 +117,6 @@ export class StatusBar {
 	}
 
 	private clearRenderedBlock() {
-		if (this.lastRenderLines === 0) {
-			// Still ensure we clear the current line if something else wrote over it.
-			process.stdout.write("\x1b[2K\r");
-			return;
-		}
 		if (this.lastRenderLines > 1) {
 			process.stdout.write(`\x1b[${this.lastRenderLines - 1}A`);
 		}
@@ -145,7 +125,9 @@ export class StatusBar {
 	}
 
 	private render() {
-		if (!this.isRunning) return;
+		if (!this.isRunning) {
+			return;
+		}
 
 		this.frame++;
 		const spinner = pc.cyan(this.spinners[this.frame % this.spinners.length]);
@@ -165,6 +147,12 @@ export class StatusBar {
 
 		const cols = process.stdout.columns || 80;
 		const lines: string[] = [];
+
+		for (const { sourceId, publisherId } of this.listing) {
+			lines.push(
+				this.renderListingLine({ spinner, sourceId, publisherId, cols }),
+			);
+		}
 
 		for (const { item } of this.fetching) {
 			lines.push(
@@ -186,6 +174,20 @@ export class StatusBar {
 		this.lastRenderLines = lines.length;
 	}
 
+	private renderListingLine(args: {
+		spinner: string;
+		sourceId: SourceId;
+		publisherId: string;
+		cols: number;
+	}): string {
+		const { spinner, sourceId, publisherId, cols } = args;
+		const logo = getSourceLogo(sourceId);
+		const publisherDisplay = pc.bold(pc.white(publisherId));
+
+		const raw = `${spinner} ${pc.green("fetching items")} ${logo}  ${publisherDisplay}`;
+		return this.truncateToCols(raw, cols);
+	}
+
 	private renderWorkLine(args: {
 		spinner: string;
 		action: "fetching" | "indexing";
@@ -193,15 +195,14 @@ export class StatusBar {
 		cols: number;
 	}): string {
 		const { spinner, action, item, cols } = args;
-		const source = pc.dim(item.source);
-		const publisher = item.publisher
-			? pc.bold(pc.white(item.publisher))
+		const logo = getSourceLogo(item.sourceId);
+		const publisherId = item.publisherId
+			? pc.white(item.publisherId)
 			: pc.dim("(unknown)");
-		const title = pc.cyan(
-			this.truncate(item.title.trim().replace(/\s+/g, " "), 120),
-		);
+		const color = action === "fetching" ? pc.green : pc.blue;
+		const title = this.truncate(item.title.trim().replace(/\s+/g, " "), 120);
 
-		const raw = `${spinner} ${action} ${source} ${publisher} ${title}`;
+		const raw = `${spinner} ${color(action)} ${logo}  ${publisherId} '${color(title)}'`;
 		return this.truncateToCols(raw, cols);
 	}
 
@@ -218,13 +219,7 @@ export class StatusBar {
 	private truncateToCols(str: string, cols: number): string {
 		const visible = this.stripAnsi(str);
 		if (visible.length <= cols) return str;
-		// Very simple truncation: keep left side, drop tail.
-		// Note: ANSI-aware truncation is more complex; titles are already truncated to keep this stable.
 		return str.slice(0, Math.max(0, cols - 1));
-	}
-
-	private defaultKey(item: StatusBarWorkItem): string {
-		return `${item.source}:${item.publisher ?? ""}:${item.title}`;
 	}
 
 	private formatNumber(num: number): string {
@@ -235,11 +230,12 @@ export class StatusBar {
 
 	private truncate(str: string, max: number): string {
 		if (str.length <= max) return str;
-		return str.slice(0, max - 3) + "...";
+		return `${str.slice(0, max - 3)}...`;
 	}
 
 	private stripAnsi(str: string): string {
 		return str.replace(
+			// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape codes
 			/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
 			"",
 		);

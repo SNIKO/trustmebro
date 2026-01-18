@@ -15,6 +15,7 @@
 	"private": true,
 	"scripts": {
 		"dev": "bun run src/app.ts",
+		"demo": "bun run src/demo-playground.ts",
 		"build": "bun build src/app.ts --outdir dist --target bun --format esm && (printf '#!/usr/bin/env bun\n' | cat - dist/app.js > dist/.app.js) && mv dist/.app.js dist/app.js && chmod +x dist/app.js",
 		"lint": "bunx --bun biome lint .",
 		"fix": "bunx --bun biome format . --write",

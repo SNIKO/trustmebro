@@ -4,15 +4,11 @@ import { type Config, loadConfig, type SourceId } from "../../config.js";
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
 import {
-	logGreptorDocumentCompleted as logDocumentProcessingCompleted,
-	logGreptorDocumentStarted as logDocumentProcessingStarted,
-	logGreptorError,
+	logIndexingItemCompleted as logDocumentProcessingCompleted,
+	logIndexingItemStarted as logDocumentProcessingStarted,
 	logger,
-	logGreptorRunCompleted as logProcessingRunCompleted,
-	logGreptorRunStarted as logProcessingRunStarted,
-	logSourceStart,
-} from "../../utils/logger.js";
-import { statusBar } from "../../utils/status-bar.js";
+} from "../../ui/logger.js";
+import { statusBar } from "../../ui/status-bar.js";
 
 type TagType =
 	Config["tags"] extends Record<string, infer T>
@@ -76,15 +72,11 @@ async function createGreptorClient(
 			workers: config.indexing.workers,
 			tagSchema,
 			hooks: {
-				onProcessingRunStarted: logProcessingRunStarted,
 				onDocumentProcessingStarted: logDocumentProcessingStarted,
 				onDocumentProcessingCompleted: logDocumentProcessingCompleted,
-				onProcessingRunCompleted: logProcessingRunCompleted,
-				onError: logGreptorError,
 			},
 		});
 
-		console.log("Greptor client created successfully");
 		return greptor;
 	} catch (error) {
 		console.error("Failed to create model:", error);
@@ -138,7 +130,6 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 		// Process each source
 		for (const { source, publisherIds } of sourcesToProcess) {
 			for (const publisherId of publisherIds) {
-				logSourceStart({ sourceId: source.sourceId, publisherId });
 				await source.runOnce(context, publisherId);
 			}
 		}

@@ -1,10 +1,10 @@
 import {
+	logFetchingItemsCompleted,
+	logFetchingItemsStarted,
 	logger,
-	logItemResult,
-	logSourceComplete,
-	logSourceFound,
+	logItemFetched,
 	type SourceLogContext,
-} from "../../utils/logger.js";
+} from "../../ui/logger.js";
 import type { Source, SourceContext } from "../types.js";
 import { hasYtDlp, listVideos } from "./fetch.js";
 import { processVideo } from "./process.js";
@@ -29,12 +29,12 @@ export function createYoutubeSource(): Source | null {
 			const state = new YouTubeState(context.workspacePath);
 			await state.load();
 
+			logFetchingItemsStarted("youtube", publisherId);
 			const videos = await listVideos(publisherId);
+			logFetchingItemsCompleted("youtube", publisherId);
 			const newVideos = videos.filter(
 				(v) => v.id && !state.contains(publisherId, v.id),
 			);
-
-			logSourceFound(logContext, videos.length, newVideos.length);
 
 			for (const entry of newVideos) {
 				if (!entry.id) continue;
@@ -50,36 +50,33 @@ export function createYoutubeSource(): Source | null {
 
 				switch (result.status) {
 					case "indexed":
-						logItemResult({
+						logItemFetched({
 							context: logContext,
 							status: "fetched",
 							title: result.title ?? title,
 						});
 						break;
 					case "skipped":
-						logItemResult({
+						logItemFetched({
 							context: logContext,
 							status: "skipped",
 							title: result.title ?? title,
 							reason: result.reason ?? "unknown reason",
 						});
 						if (result.reason === "before-start-date") {
-							logSourceComplete(logContext, "reached start date");
 							return;
 						}
 						break;
 					case "error":
-						logItemResult({
+						logItemFetched({
 							context: logContext,
-							status: "error",
+							status: "failed",
 							title: result.title ?? title,
 							reason: result.reason ?? "unknown error",
 						});
 						break;
 				}
 			}
-
-			logSourceComplete(logContext);
 		},
 	};
 }
