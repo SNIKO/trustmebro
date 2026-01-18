@@ -34,7 +34,7 @@
 		"@ai-sdk/openai-compatible": "^2.0.4",
 		"@stricli/core": "^1.2.0",
 		"ai": "^4.3.0",
-		"greptor": "^0.4.0",
+		"greptor": "../greptor",
 		"picocolors": "^1.1.1",
 		"pino": "^9.6.0",
 		"pino-pretty": "^11.3.0",

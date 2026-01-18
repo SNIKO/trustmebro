@@ -49,12 +49,17 @@ const modelConfigSchema = z.object({
 	options: z.record(z.string(), z.unknown()).optional(),
 });
 
+const indexingConfigSchema = z.object({
+	workers: z.coerce.number().int().positive().optional().default(5),
+	model: modelConfigSchema,
+});
+
 export type ModelConfig = z.infer<typeof modelConfigSchema>;
 
 const configSchema = z.object({
 	startDate: z.coerce.date(),
 	topic: z.string(),
-	model: modelConfigSchema,
+	indexing: indexingConfigSchema,
 	tags: z.record(z.string(), configTagSchema).optional(),
 	sources: z.object({
 		youtube: publisherConfigSchema.optional(),

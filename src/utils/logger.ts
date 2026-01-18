@@ -1,5 +1,7 @@
+import { Writable } from "node:stream";
 import type {
 	DocumentProcessingCompletedEvent,
+	DocumentProcessingStartedEvent,
 	ErrorEvent,
 	ProcessingRunCompletedEvent,
 	ProcessingRunStartedEvent,
@@ -8,6 +10,7 @@ import pc from "picocolors";
 import pino from "pino";
 import pretty from "pino-pretty";
 import type { SourceId } from "../config.js";
+import { statusBar } from "./status-bar.js";
 
 export type SourceLogContext = {
 	sourceId: SourceId;
@@ -41,6 +44,12 @@ const stream = pretty({
 	ignore: "pid,hostname",
 	messageFormat: "{msg}",
 	singleLine: true,
+	destination: new Writable({
+		write(chunk, encoding, callback) {
+			statusBar.log(chunk.toString());
+			callback();
+		},
+	}),
 });
 
 export const logger = pino(
@@ -99,23 +108,45 @@ export function logItemResult(args: {
 }
 
 export function logGreptorRunStarted(event: ProcessingRunStartedEvent): void {
-	logger.info(`${pc.magenta("🧠")} Documents processing started`);
+	statusBar.start();
+	logger.info(`${pc.magenta("🧠")} Indexing started`);
 }
 
 export function logGreptorRunCompleted(
 	event: ProcessingRunCompletedEvent,
 ): void {
 	const elapsed = pc.dim(`in ${formatDuration(event.elapsedMs)}`);
-	logger.info(`${pc.magenta("🧠")} Documents processing completed ${elapsed}`);
+	logger.info(`${pc.magenta("🧠")} Indexing completed ${elapsed}`);
+}
+
+export function logGreptorDocumentStarted(
+	event: DocumentProcessingStartedEvent,
+): void {
+	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
+	statusBar.addIndexingItem(key, {
+		source: event.source,
+		publisher: event.publisher,
+		title: event.label,
+	});
+	statusBar.updateStats({ queue: event.queueSize });
 }
 
 export function logGreptorDocumentCompleted(
 	event: DocumentProcessingCompletedEvent,
 ): void {
+	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
+	statusBar.removeIndexingItem(key);
+	statusBar.addTokens(event.inputTokens, event.outputTokens);
+	statusBar.updateStats({ queue: event.queueSize });
+
 	const prefix = formatGreptorPrefix(event.source, event.publisher);
-	const status = event.success ? pc.green("processed") : pc.red("failed");
+	const status = event.success ? pc.green("indexed") : pc.red("failed");
+
+	const queue = pc.magenta(`[Q:${event.queueSize}]`);
+	const tokens = `${pc.dim("tok:")}${event.inputTokens}${pc.dim("/")}${event.outputTokens}`;
 	const elapsed = pc.dim(`in ${formatDuration(event.elapsedMs)}`);
-	const line = `${prefix} ${status} ${formatTitle(event.label)} ${elapsed}`;
+
+	const line = `${prefix} ${status} ${formatTitle(event.label)} ${queue} ${tokens} ${elapsed}`;
 
 	if (event.success) {
 		logger.info(line);

@@ -1,3 +1,4 @@
+import { statusBar } from "../../utils/status-bar.js";
 import type { SourceContext } from "../types.js";
 import { buildVideoUrl, fetchTranscript, fetchVideoDetails } from "./fetch.js";
 import { ingestVideo } from "./ingest.js";
@@ -17,6 +18,13 @@ export async function processVideo(args: {
 		return { videoId: "<unknown>", status: "skipped", reason: "missing-id" };
 	}
 
+	const fetchKey = `youtube:${publisherId}:${videoId}`;
+	statusBar.addFetchingItem(fetchKey, {
+		source: "youtube",
+		publisher: publisherId,
+		title: entry.title ?? videoId,
+	});
+
 	try {
 		const videoUrl = buildVideoUrl(entry);
 		const details = await fetchVideoDetails(videoUrl);
@@ -27,6 +35,13 @@ export async function processVideo(args: {
 				reason: "missing-details",
 			};
 		}
+
+		statusBar.removeFetchingItem(fetchKey);
+		statusBar.addFetchingItem(fetchKey, {
+			source: "youtube",
+			publisher: publisherId,
+			title: details.title ?? videoId,
+		});
 
 		const publishedAt = new Date(details.timestamp * 1000);
 		if (publishedAt < context.config.startDate) {
@@ -47,6 +62,9 @@ export async function processVideo(args: {
 				title: details.title,
 			};
 		}
+
+		// Switch from fetching -> indexing.
+		statusBar.removeFetchingItem(fetchKey);
 
 		const ingested = await ingestVideo({
 			context,
@@ -76,5 +94,7 @@ export async function processVideo(args: {
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		return { videoId, status: "error", reason: message };
+	} finally {
+		statusBar.removeFetchingItem(fetchKey);
 	}
 }
