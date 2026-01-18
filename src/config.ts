@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { sleep } from "bun";
 import { parse } from "yaml";
 import { z } from "zod";
 
@@ -35,13 +36,26 @@ export type TagType = ConfigTag["type"];
 
 const publisherConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
-	pollIntervalMinutes: z.coerce
+});
+
+const redditConfigSchema = z.object({
+	publishers: z.array(z.string()).default([]),
+	/** Minimum number of comments required for a post to be indexed */
+	commentsCountThreshold: z.coerce
 		.number()
 		.int()
-		.positive()
+		.nonnegative()
 		.optional()
-		.default(60),
+		.default(0),
+	sleepBetweenRequestsMs: z.coerce
+		.number()
+		.int()
+		.nonnegative()
+		.optional()
+		.default(1000),
 });
+
+export type RedditConfig = z.infer<typeof redditConfigSchema>;
 
 const modelConfigSchema = z.object({
 	provider: z.string(),
@@ -65,7 +79,7 @@ const configSchema = z.object({
 		youtube: publisherConfigSchema.optional(),
 		telegram: publisherConfigSchema.optional(),
 		twitter: publisherConfigSchema.optional(),
-		reddit: publisherConfigSchema.optional(),
+		reddit: redditConfigSchema.optional(),
 	}),
 });
 
