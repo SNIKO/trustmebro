@@ -1,3 +1,4 @@
+import { sleep } from "bun";
 import type {
 	RedditComment,
 	RedditPost,
@@ -65,6 +66,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 export type PostsBatch = {
 	posts: RedditPost[];
 	reachedStartDate: boolean;
+	reachedEnd: boolean;
 };
 
 /**
@@ -75,6 +77,7 @@ export type PostsBatch = {
 export async function* listPostsBatched(
 	subreddit: string,
 	startDate: Date,
+	sleepBetweenRequestsMs: number,
 ): AsyncGenerator<PostsBatch> {
 	let after: string | undefined;
 	const startTimestamp = startDate.getTime() / 1000; // Convert to Unix timestamp
@@ -92,6 +95,7 @@ export async function* listPostsBatched(
 			.map((child) => child.data);
 
 		if (allPosts.length === 0) {
+			yield { posts: [], reachedStartDate: false, reachedEnd: true };
 			return; // No more posts
 		}
 
@@ -108,8 +112,14 @@ export async function* listPostsBatched(
 			}
 		}
 
+		const reachedEnd = reachedStartDate || !response.data.after;
+
 		if (postsInRange.length > 0) {
-			yield { posts: postsInRange, reachedStartDate };
+			yield { posts: postsInRange, reachedStartDate, reachedEnd };
+		} else if (reachedStartDate) {
+			// We hit the cutoff before collecting any posts from this page.
+			// Still yield once so callers can observe termination.
+			yield { posts: [], reachedStartDate: true, reachedEnd: true };
 		}
 
 		if (reachedStartDate) {
@@ -122,9 +132,8 @@ export async function* listPostsBatched(
 			return; // No more pages
 		}
 
-		// Rate limiting: Reddit allows 60 requests per minute
-		// Add a small delay to be respectful
-		await new Promise((resolve) => setTimeout(resolve, 1000));
+		// Be nice to Reddit's API
+		await sleep(sleepBetweenRequestsMs);
 	}
 }
 
@@ -134,6 +143,7 @@ export async function* listPostsBatched(
 export async function fetchPostWithComments(
 	subreddit: string,
 	postId: string,
+	sleepBetweenRequestsMs: number,
 ): Promise<RedditPostWithComments | null> {
 	// Remove "t3_" prefix if present
 	const cleanId = postId.replace(/^t3_/, "");
@@ -153,6 +163,9 @@ export async function fetchPostWithComments(
 		return { post, comments };
 	} catch {
 		return null;
+	} finally {
+		// Be nice to Reddit's API
+		await sleep(sleepBetweenRequestsMs);
 	}
 }
 

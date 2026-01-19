@@ -1,4 +1,3 @@
-import { sleep } from "bun";
 import {
 	logFetchingItemsCompleted,
 	logFetchingItemsStarted,
@@ -10,6 +9,9 @@ import { listPostsBatched } from "./fetch.js";
 import { processPost } from "./process.js";
 import { RedditState } from "./state.js";
 import type { RedditPost } from "./types.js";
+
+/** Overlap window: re-check posts within this period for comment updates */
+const OVERLAP_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 
 export function createRedditSource(): Source {
 	return {
@@ -29,47 +31,60 @@ export function createRedditSource(): Source {
 
 			logFetchingItemsStarted("reddit", publisherId);
 
-			// Process posts batch by batch (100 at a time)
-			// This ensures state is persisted between batches, so if something fails
-			// we don't lose all the work done so far
+			const isBackfillComplete = state.isBackfillComplete(publisherId);
+			const latestFetched = state.getLatestFetched(publisherId);
+
+			// Determine cutoff date:
+			// - Backfill complete: fetch from (latestFetched - overlap) to catch updated posts
+			// - Backfill not complete: fetch all posts till config start date
+			const cutoffDate =
+				isBackfillComplete && latestFetched !== null
+					? new Date(latestFetched - OVERLAP_MS)
+					: context.config.startDate;
+
 			const postsToReindex: RedditPost[] = [];
+			let reachedEndForBackfill = false;
 
 			for await (const batch of listPostsBatched(
 				publisherId,
-				context.config.startDate,
+				cutoffDate,
+				context.config.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
 			)) {
-				// Separate posts in this batch
-				const newPosts = batch.posts.filter(
-					(p) => !state.contains(publisherId, p.id),
-				);
-				const existingPosts = batch.posts.filter((p) =>
-					state.contains(publisherId, p.id),
-				);
+				if (batch.reachedEnd && !isBackfillComplete) {
+					reachedEndForBackfill = true;
+				}
 
-				// Collect posts that need re-indexing (process after all new posts)
-				for (const post of existingPosts) {
-					if (state.shouldReindex(publisherId, post.id, post.num_comments)) {
+				if (batch.posts.length === 0) continue;
+
+				for (const post of batch.posts) {
+					const isIndexed = state.contains(publisherId, post.id);
+
+					if (!isIndexed) {
+						// New post: process immediately
+						const result = await processPost({
+							context,
+							subreddit: publisherId,
+							post,
+							state,
+							minCommentCount,
+						});
+						logResult(logContext, result);
+					} else if (
+						state.shouldReindex(publisherId, post.id, post.num_comments)
+					) {
+						// Existing post with significant comment increase: queue for re-index
 						postsToReindex.push(post);
 					}
 				}
+			}
 
-				// Process new posts immediately (state persisted after each)
-				for (const post of newPosts) {
-					const result = await processPost({
-						context,
-						subreddit: publisherId,
-						post,
-						state,
-						minCommentCount,
-					});
-
-					logResult(logContext, result);
-
-					// Be nice to Reddit's API
-					await sleep(
-						context.config.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
-					);
-				}
+			// Mark backfill complete if we fetched all the way to config start date
+			if (
+				!isBackfillComplete &&
+				cutoffDate.getTime() === context.config.startDate.getTime() &&
+				reachedEndForBackfill
+			) {
+				await state.markBackfillComplete(publisherId);
 			}
 
 			logFetchingItemsCompleted("reddit", publisherId);
@@ -84,7 +99,6 @@ export function createRedditSource(): Source {
 					minCommentCount,
 					isReindex: true,
 				});
-
 				logResult(logContext, result);
 			}
 		},
@@ -101,21 +115,21 @@ function logResult(
 		case "indexed":
 			logItemFetched({
 				context: logContext,
-				status: "fetched",
+				action: "fetched",
 				title,
 			});
 			break;
 		case "updated":
 			logItemFetched({
 				context: logContext,
-				status: "fetched",
+				action: "fetched",
 				title: `${title} (re-indexed)`,
 			});
 			break;
 		case "skipped":
 			logItemFetched({
 				context: logContext,
-				status: "skipped",
+				action: "skipped",
 				title,
 				reason: result.reason ?? "unknown reason",
 			});
@@ -123,7 +137,7 @@ function logResult(
 		case "error":
 			logItemFetched({
 				context: logContext,
-				status: "failed",
+				action: "failed",
 				title,
 				reason: result.reason ?? "unknown error",
 			});

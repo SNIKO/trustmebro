@@ -127,11 +127,44 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			}
 		}
 
-		// Process each source
-		for (const { source, publisherIds } of sourcesToProcess) {
-			for (const publisherId of publisherIds) {
-				await source.runOnce(context, publisherId);
-			}
+		// Process each source concurrently, but keep publishers sequential within a source.
+		const results = await Promise.all(
+			sourcesToProcess.map(async ({ source, publisherIds }) => {
+				const errors: Array<{
+					sourceId: SourceId;
+					publisherId: string;
+					error: unknown;
+				}> = [];
+
+				for (const publisherId of publisherIds) {
+					try {
+						await source.runOnce(context, publisherId);
+					} catch (error) {
+						errors.push({
+							sourceId: source.sourceId,
+							publisherId,
+							error,
+						});
+						logger.error(
+							{
+								sourceId: source.sourceId,
+								publisherId,
+								err: error,
+							},
+							`[${source.sourceId}] Failed processing publisher '${publisherId}'`,
+						);
+					}
+				}
+
+				return { sourceId: source.sourceId, errors };
+			}),
+		);
+
+		const failed = results.flatMap((r) => r.errors);
+		if (failed.length > 0) {
+			throw new Error(
+				`Indexing completed with ${failed.length} failed publisher run(s) across ${results.length} source(s)`,
+			);
 		}
 
 		logger.info("Indexing run complete");

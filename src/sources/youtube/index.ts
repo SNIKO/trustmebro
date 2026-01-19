@@ -52,14 +52,14 @@ export function createYoutubeSource(): Source | null {
 					case "indexed":
 						logItemFetched({
 							context: logContext,
-							status: "fetched",
+							action: "fetched",
 							title: result.title ?? title,
 						});
 						break;
 					case "skipped":
 						logItemFetched({
 							context: logContext,
-							status: "skipped",
+							action: "skipped",
 							title: result.title ?? title,
 							reason: result.reason ?? "unknown reason",
 						});
@@ -70,7 +70,7 @@ export function createYoutubeSource(): Source | null {
 					case "error":
 						logItemFetched({
 							context: logContext,
-							status: "failed",
+							action: "failed",
 							title: result.title ?? title,
 							reason: result.reason ?? "unknown error",
 						});

@@ -38,5 +38,6 @@ export type PostRunResult = {
 
 export type IndexedPostState = {
 	commentCount: number;
+	createdAt: number;
 	indexedAt: number;
 };

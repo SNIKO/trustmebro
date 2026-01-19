@@ -45,7 +45,11 @@ export async function processPost(args: {
 		}
 
 		// Fetch full post with comments
-		const postData = await fetchPostWithComments(subreddit, postId);
+		const postData = await fetchPostWithComments(
+			subreddit,
+			postId,
+			context.config.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
+		);
 		if (!postData) {
 			return {
 				postId,
@@ -74,7 +78,12 @@ export async function processPost(args: {
 			};
 		}
 
-		await state.markIndexed(subreddit, postId, post.num_comments);
+		await state.markIndexed(
+			subreddit,
+			postId,
+			post.num_comments,
+			post.created_utc * 1000,
+		);
 
 		return {
 			postId,
