@@ -1,6 +1,11 @@
 import path from "node:path";
 import { createGreptor, type Greptor } from "greptor";
-import { type Config, loadConfig, type SourceId } from "../../config.js";
+import {
+	type Config,
+	DATA_DIR_NAME,
+	loadConfig,
+	type SourceId,
+} from "../../config.js";
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
 import {
@@ -46,21 +51,17 @@ async function createGreptorClient(
 	config: Config,
 	basePath: string,
 ): Promise<Greptor> {
-	const tagSchema = config.tags
-		? Object.entries(config.tags).map(([name, entry]) => ({
-				name,
-				type: entry.type as TagType,
-				description: entry.description ?? "",
-				enumValues:
-					entry.type === "enum" || entry.type === "enum[]"
-						? entry.values
-						: null,
-			}))
-		: undefined;
+	const tagSchema = Object.entries(config.tags).map(([name, entry]) => ({
+		name,
+		type: entry.type as TagType,
+		description: entry.description ?? "",
+		enumValues:
+			entry.type === "enum" || entry.type === "enum[]" ? entry.values : null,
+	}));
 
 	try {
 		const greptor = createGreptor({
-			baseDir: basePath,
+			basePath: basePath,
 			topic: config.topic,
 			model: {
 				provider: config.indexing.model.provider,
@@ -89,7 +90,7 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 	try {
 		const workspacePath = flags.workspacePath ?? ".";
 		const configPath = path.join(workspacePath, "config.yaml");
-		const dataPath = path.join(workspacePath, "data");
+		const dataPath = path.join(workspacePath, DATA_DIR_NAME);
 		const config = await loadConfig(configPath);
 		const greptor = await createGreptorClient(config, dataPath);
 		const sources = buildSources();

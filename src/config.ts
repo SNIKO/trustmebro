@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { sleep } from "bun";
 import { parse } from "yaml";
 import { z } from "zod";
+
+export const DATA_DIR_NAME = "data/social";
 
 export const sourceIdSchema = z.enum([
 	"youtube",
@@ -30,7 +31,11 @@ const configTagSchema = z.discriminatedUnion("type", [
 	}),
 ]);
 
+const tagsSchema = z.record(z.string(), configTagSchema);
+
 export type ConfigTag = z.infer<typeof configTagSchema>;
+
+export type ConfigTags = z.infer<typeof tagsSchema>;
 
 export type TagType = ConfigTag["type"];
 
@@ -74,7 +79,7 @@ const configSchema = z.object({
 	startDate: z.coerce.date(),
 	topic: z.string(),
 	indexing: indexingConfigSchema,
-	tags: z.record(z.string(), configTagSchema).optional(),
+	tags: tagsSchema,
 	sources: z.object({
 		youtube: publisherConfigSchema.optional(),
 		telegram: publisherConfigSchema.optional(),
