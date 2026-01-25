@@ -53,7 +53,7 @@ export async function processVideo(args: {
 			};
 		}
 
-		const transcript = await fetchTranscript(videoUrl);
+		const transcript = await fetchTranscript(videoUrl, details);
 		if (!transcript) {
 			return {
 				videoId,

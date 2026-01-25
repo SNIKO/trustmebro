@@ -8,6 +8,9 @@ export type YtDlpVideo = {
 	view_count?: number;
 	like_count?: number;
 	comment_count?: number;
+	language?: string | null;
+	subtitles?: Record<string, unknown[]>;
+	automatic_captions?: Record<string, unknown[]>;
 };
 
 export type FlatPlaylistEntry = {
