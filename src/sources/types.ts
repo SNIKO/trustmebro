@@ -10,4 +10,5 @@ export interface SourceContext {
 export interface Source {
 	sourceId: SourceId;
 	runOnce(context: SourceContext, publisherId: string): Promise<void>;
+	getProcessingPrompt?(topic: string, tagSchema: string): string;
 }

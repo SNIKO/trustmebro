@@ -7,6 +7,7 @@ import {
 import type { Source, SourceContext } from "../types.js";
 import { listPostsBatched } from "./fetch.js";
 import { processPost } from "./process.js";
+import { getRedditProcessingPrompt } from "./process-prompt.js";
 import { RedditState } from "./state.js";
 import type { RedditPost } from "./types.js";
 
@@ -16,6 +17,7 @@ const OVERLAP_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 export function createRedditSource(): Source {
 	return {
 		sourceId: "reddit",
+		getProcessingPrompt: getRedditProcessingPrompt,
 
 		async runOnce(context: SourceContext, publisherId: string): Promise<void> {
 			const logContext = {

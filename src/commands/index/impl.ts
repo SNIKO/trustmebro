@@ -50,6 +50,7 @@ interface IndexCommandFlags {
 async function createGreptorClient(
 	config: Config,
 	basePath: string,
+	sources: ReturnType<typeof buildSources>,
 ): Promise<Greptor> {
 	const tagSchema = Object.entries(config.tags).map(([name, entry]) => ({
 		name,
@@ -58,6 +59,17 @@ async function createGreptorClient(
 		enumValues:
 			entry.type === "enum" || entry.type === "enum[]" ? entry.values : null,
 	}));
+
+	// Extract prompts from sources that provide them
+	const customProcessingPrompts: Record<string, string> = {};
+	for (const source of sources) {
+		if (source.getProcessingPrompt) {
+			customProcessingPrompts[source.sourceId] = source.getProcessingPrompt(
+				config.topic,
+				JSON.stringify(tagSchema, null, 2),
+			);
+		}
+	}
 
 	try {
 		const greptor = createGreptor({
@@ -72,6 +84,7 @@ async function createGreptorClient(
 			},
 			workers: config.indexing.workers,
 			tagSchema,
+			customProcessingPrompts,
 			hooks: {
 				onDocumentProcessingStarted: logDocumentProcessingStarted,
 				onDocumentProcessingCompleted: logDocumentProcessingCompleted,
@@ -92,8 +105,8 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 		const configPath = path.join(workspacePath, "config.yaml");
 		const dataPath = path.join(workspacePath, DATA_DIR_NAME);
 		const config = await loadConfig(configPath);
-		const greptor = await createGreptorClient(config, dataPath);
 		const sources = buildSources();
+		const greptor = await createGreptorClient(config, dataPath, sources);
 		const context: SourceContext = { config, workspacePath, greptor };
 
 		// Collect all sources and publishers we'll be processing
