@@ -187,7 +187,8 @@ async function findSubtitleFile(
 		}
 
 		// 2. Fallback to any available
-		return { path: path.join(workingDir, matchingFiles[0]), ext };
+		// biome-ignore lint/style/noNonNullAssertion: Guaranteed by check above
+		return { path: path.join(workingDir, matchingFiles[0]!), ext };
 	}
 
 	return null;

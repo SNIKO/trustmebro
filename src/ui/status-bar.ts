@@ -8,6 +8,9 @@ export type StatusBarWorkItem = {
 	title: string;
 };
 
+export type SourceCountEntry = { fetched: number; processed: number };
+export type SourceCounts = Record<string, SourceCountEntry>;
+
 export class StatusBar {
 	private frame = 0;
 	private timer: ReturnType<typeof setInterval> | undefined;
@@ -18,8 +21,8 @@ export class StatusBar {
 		sourceId: SourceId;
 		publisherId: string;
 	}> = [];
+	private sourceCounts: SourceCounts = {};
 	private stats = {
-		queue: 0,
 		inputTokens: 0,
 		outputTokens: 0,
 		totalTokens: 0,
@@ -90,6 +93,12 @@ export class StatusBar {
 		this.render();
 	}
 
+	updateSourceCounts(counts: SourceCounts) {
+		this.sourceCounts = counts;
+		this.ensureRunning();
+		this.render();
+	}
+
 	addTokens(input: number, output: number) {
 		this.stats.inputTokens += input;
 		this.stats.outputTokens += output;
@@ -132,8 +141,25 @@ export class StatusBar {
 		this.frame++;
 		const spinner = pc.cyan(this.spinners[this.frame % this.spinners.length]);
 
-		const qVal = this.stats.queue.toString().padStart(3, " ");
-		const q = pc.bold(pc.magenta(`Queue: ${qVal}`));
+		const sourceStatsParts: string[] = [];
+
+		for (const [source, count] of Object.entries(this.sourceCounts)) {
+			const pending = count.fetched - count.processed;
+			if (pending > 0) {
+				sourceStatsParts.push(
+					`${pc.dim(source)}: ${pc.green(String(count.processed))} ${pc.dim("(")}${pc.yellow(String(pending))} ${pc.dim("pending)")}`,
+				);
+			} else {
+				sourceStatsParts.push(
+					`${pc.dim(source)}: ${pc.green(String(count.processed))}`,
+				);
+			}
+		}
+
+		const sourceStatsStr =
+			sourceStatsParts.length > 0
+				? `${sourceStatsParts.join(pc.dim(" | "))}`
+				: "";
 
 		const inVal = this.formatNumber(this.stats.inputTokens);
 		const outVal = this.formatNumber(this.stats.outputTokens);
@@ -143,7 +169,7 @@ export class StatusBar {
 		const tOut = `${pc.dim("Output:")} ${pc.yellow(outVal)}`;
 		const tTotal = `${pc.dim("Total:")} ${pc.white(totVal)}`;
 
-		const right = `${q}  │  ${tIn}  ${tOut}  ${tTotal}`;
+		const right = `${sourceStatsStr}  │  ${tIn}  ${tOut}  ${tTotal}`;
 
 		const cols = process.stdout.columns || 80;
 		const lines: string[] = [];

@@ -2,6 +2,7 @@ import { Writable } from "node:stream";
 import type {
 	DocumentProcessingCompletedEvent,
 	DocumentProcessingStartedEvent,
+	SourceCounts,
 } from "greptor";
 import pc from "picocolors";
 import pino from "pino";
@@ -93,16 +94,21 @@ export function logItemFetched(args: {
 	}
 }
 
+export function logDocumentsCount(documentsCount: SourceCounts): void {
+	statusBar.updateSourceCounts(documentsCount);
+}
+
 export function logIndexingItemStarted(
 	event: DocumentProcessingStartedEvent,
 ): void {
 	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
+	console.log(key);
 	statusBar.addIndexingItem(key, {
 		sourceId: event.source as SourceId,
 		publisherId: event.publisher,
 		title: event.label,
 	});
-	statusBar.updateStats({ queue: event.queueSize });
+	statusBar.updateSourceCounts(event.documentsCount);
 }
 
 export function logIndexingItemCompleted(
@@ -110,8 +116,11 @@ export function logIndexingItemCompleted(
 ): void {
 	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
 	statusBar.removeIndexingItem(key);
-	statusBar.addTokens(event.inputTokens, event.outputTokens);
-	statusBar.updateStats({ queue: event.queueSize });
+
+	if (event.success) {
+		statusBar.addTokens(event.inputTokens, event.outputTokens);
+		statusBar.updateSourceCounts(event.documentsCount);
+	}
 
 	const action = event.success ? "indexed" : "failed";
 	const color = getColor(action);
@@ -122,10 +131,17 @@ export function logIndexingItemCompleted(
 	const publisher = pc.white(event.publisher ?? "");
 	const actionLabel = color(action.toLowerCase());
 	const message = formatItemTitle(action, event.label);
-	const tokens = `${dimColor("[input_tokens: ")}${color(String(event.inputTokens))} ${dimColor("output_tokens: ")}${color(String(event.outputTokens))}${dimColor("]")}`;
-	const elapsed = `${dimColor("in ")}${color(formatDuration(event.elapsedMs))}`;
 
-	const line = `${time} ${actionLabel} ${logo}  ${publisher} ${message} ${elapsed} ${tokens}`;
+	let details = "";
+	if (event.success) {
+		const tokens = `${dimColor("[input_tokens: ")}${color(String(event.inputTokens))} ${dimColor("output_tokens: ")}${color(String(event.outputTokens))}${dimColor("]")}`;
+		const elapsed = `${dimColor("in ")}${color(formatDuration(event.elapsedMs))}`;
+		details = ` ${elapsed} ${tokens}`;
+	} else {
+		details = ` ${dimColor(`(error: ${event.error})`)}`;
+	}
+
+	const line = `${time} ${actionLabel} ${logo}  ${publisher} ${message}${details}`;
 
 	if (event.success) {
 		logger.info(line);

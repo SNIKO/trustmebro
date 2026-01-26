@@ -20,6 +20,7 @@
 		"lint": "bunx --bun biome lint .",
 		"fix": "bunx --bun biome format . --write",
 		"check": "bunx --bun biome check .",
+		"typecheck": "tsc --noEmit",
 		"changeset": "bunx --bun changeset",
 		"version-packages": "bunx --bun changeset version",
 		"release": "bunx --bun changeset publish"

@@ -9,9 +9,9 @@ import {
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
 import {
-	logIndexingItemCompleted as logDocumentProcessingCompleted,
-	logIndexingItemStarted as logDocumentProcessingStarted,
 	logger,
+	logIndexingItemCompleted,
+	logIndexingItemStarted,
 } from "../../ui/logger.js";
 import { statusBar } from "../../ui/status-bar.js";
 
@@ -86,8 +86,8 @@ async function createGreptorClient(
 			tagSchema,
 			customProcessingPrompts,
 			hooks: {
-				onDocumentProcessingStarted: logDocumentProcessingStarted,
-				onDocumentProcessingCompleted: logDocumentProcessingCompleted,
+				onDocumentProcessingStarted: logIndexingItemStarted,
+				onDocumentProcessingCompleted: logIndexingItemCompleted,
 			},
 		});
 
@@ -108,6 +108,9 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 		const sources = buildSources();
 		const greptor = await createGreptorClient(config, dataPath, sources);
 		const context: SourceContext = { config, workspacePath, greptor };
+
+		const documentsCount = await greptor.getDocumentCounts();
+		statusBar.updateSourceCounts(documentsCount);
 
 		// Collect all sources and publishers we'll be processing
 		const sourcesToProcess: Array<{
