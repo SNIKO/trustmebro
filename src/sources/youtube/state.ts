@@ -15,7 +15,11 @@ export class YouTubeState {
 	private state: State = {};
 
 	constructor(workspacePath: string) {
-		this.filePath = path.join(workspacePath, "index-youtube.yaml");
+		this.filePath = path.join(
+			workspacePath,
+			".trustmebro",
+			"index-youtube.yaml",
+		);
 	}
 
 	async load(): Promise<void> {

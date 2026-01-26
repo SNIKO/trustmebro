@@ -25,7 +25,11 @@ export class RedditState {
 	private state: State = {};
 
 	constructor(workspacePath: string) {
-		this.filePath = path.join(workspacePath, "index-reddit.yaml");
+		this.filePath = path.join(
+			workspacePath,
+			".trustmebro",
+			"index-reddit.yaml",
+		);
 	}
 
 	async load(): Promise<void> {
