@@ -39,7 +39,7 @@ Use comment scores to infer importance:
 
 Explicitly reflect score signals in wording (e.g. "widely agreed", "highly upvoted", "controversial", "minor dissent").
 
-### Cleaning Strattegy
+### Cleaning Strategy
 
 Remove:
 - Bot and auto-generated comments

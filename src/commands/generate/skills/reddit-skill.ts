@@ -7,10 +7,10 @@ export const REDDIT_SKILL_NAME = "search-reddit";
 export function createRedditSkill(data: SkillCreationOptions): string {
 	const [field1, field2, field3, field4] = data.exampleFields;
 
-	const fieldName1 = field1?.name ?? "subreddit";
-	const fieldName2 = field2?.name ?? "score";
-	const fieldName3 = field3?.name ?? "flair";
-	const fieldName4 = field4?.name ?? "author";
+	const fieldName1 = field1?.name ?? "field1";
+	const fieldName2 = field2?.name ?? "field2";
+	const fieldName3 = field3?.name ?? "field3";
+	const fieldName4 = field4?.name ?? "field4";
 
 	const val1 = field1?.value ?? "programming";
 	const val2 = field2?.value ?? "high";
