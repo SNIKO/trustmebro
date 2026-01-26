@@ -80,15 +80,15 @@ The output format is defined inside markdown code block as follows:
 
 \`\`\`markdown
 ## 01 Short descriptive title for chunk
-tag_1=value_1
-tag_2=value_4
-tag_3=value_5,value_6
+tagName_1=tagValue_1
+tagName_2=tagValue_4
+tagName_3=tagValue_5,tagValue_6
 <cleaned, condensed content>
 
 ## 02 Short descriptive title for chunk
-tag_1=value_1
-tag_2=value_9
-tag_4=value_7,value_8
+tagName_1=tagValue_1
+tagName_2=tagValue_9
+tagName_4=tagValue_7,tagValue_8
 <cleaned, condensed content>
 \`\`\`
 
