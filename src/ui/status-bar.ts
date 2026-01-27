@@ -22,6 +22,7 @@ export class StatusBar {
 		publisherId: string;
 	}> = [];
 	private sourceCounts: SourceCounts = {};
+	private failedBySource: Record<string, Set<string>> = {};
 	private stats = {
 		inputTokens: 0,
 		outputTokens: 0,
@@ -76,6 +77,27 @@ export class StatusBar {
 
 	removeListingItem(key: string) {
 		this.removeItem(this.listing, key);
+	}
+
+	markProcessingFailed(sourceId: SourceId, itemId: string) {
+		if (!this.failedBySource[sourceId]) {
+			this.failedBySource[sourceId] = new Set();
+		}
+		this.failedBySource[sourceId]?.add(itemId);
+		this.ensureRunning();
+		this.render();
+	}
+
+	markProcessingSucceeded(sourceId: SourceId, itemId: string) {
+		const failedSet = this.failedBySource[sourceId];
+		if (failedSet?.has(itemId)) {
+			failedSet.delete(itemId);
+			if (failedSet.size === 0) {
+				delete this.failedBySource[sourceId];
+			}
+			this.ensureRunning();
+			this.render();
+		}
 	}
 
 	private removeItem(
@@ -142,18 +164,35 @@ export class StatusBar {
 		const spinner = pc.cyan(this.spinners[this.frame % this.spinners.length]);
 
 		const sourceStatsParts: string[] = [];
+		const sources = new Set([
+			...Object.keys(this.sourceCounts),
+			...Object.keys(this.failedBySource),
+		]);
 
-		for (const [source, count] of Object.entries(this.sourceCounts)) {
-			const pending = count.fetched - count.processed;
+		for (const source of sources) {
+			const count = this.sourceCounts[source] ?? { fetched: 0, processed: 0 };
+			const failed = this.failedBySource[source]?.size ?? 0;
+			const pending = Math.max(0, count.fetched - count.processed - failed);
+			const unprocessedPaths: string[] = [];
+
 			if (pending > 0) {
-				sourceStatsParts.push(
-					`${pc.dim(source)}: ${pc.green(String(count.processed))} ${pc.dim("(")}${pc.yellow(String(pending))} ${pc.dim("pending)")}`,
-				);
-			} else {
-				sourceStatsParts.push(
-					`${pc.dim(source)}: ${pc.green(String(count.processed))}`,
+				unprocessedPaths.push(
+					`${pc.yellow(String(pending))} ${pc.dim("pending")}`,
 				);
 			}
+
+			if (failed > 0) {
+				unprocessedPaths.push(`${pc.red(String(failed))} ${pc.dim("failed")}`);
+			}
+
+			const unprocessedString =
+				unprocessedPaths.length > 0
+					? ` ${pc.dim("(")}${unprocessedPaths.join(", ")}${pc.dim(")")}`
+					: "";
+
+			sourceStatsParts.push(
+				`${pc.dim(source)}: ${pc.green(String(count.fetched))}${unprocessedString}`,
+			);
 		}
 
 		const sourceStatsStr =

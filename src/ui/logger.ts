@@ -102,7 +102,6 @@ export function logIndexingItemStarted(
 	event: DocumentProcessingStartedEvent,
 ): void {
 	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
-	console.log(key);
 	statusBar.addIndexingItem(key, {
 		sourceId: event.source as SourceId,
 		publisherId: event.publisher,
@@ -116,6 +115,12 @@ export function logIndexingItemCompleted(
 ): void {
 	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
 	statusBar.removeIndexingItem(key);
+
+	if (event.success) {
+		statusBar.markProcessingSucceeded(event.source as SourceId, key);
+	} else {
+		statusBar.markProcessingFailed(event.source as SourceId, key);
+	}
 
 	if (event.success) {
 		statusBar.addTokens(event.inputTokens, event.outputTokens);
