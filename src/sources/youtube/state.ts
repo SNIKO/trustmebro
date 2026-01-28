@@ -10,9 +10,17 @@ const stateSchema = z
 
 type State = z.infer<typeof stateSchema>;
 
+const skippedStateSchema = z
+	.record(z.string(), z.record(z.string(), z.string()).default({}))
+	.default({});
+
+type SkippedState = z.infer<typeof skippedStateSchema>;
+
 export class YouTubeState {
 	readonly filePath: string;
+	readonly skippedFilePath: string;
 	private state: State = {};
+	private skippedState: SkippedState = {};
 
 	constructor(workspacePath: string) {
 		this.filePath = path.join(
@@ -20,22 +28,43 @@ export class YouTubeState {
 			".trustmebro",
 			"index-youtube.yaml",
 		);
+		this.skippedFilePath = path.join(
+			workspacePath,
+			".trustmebro",
+			"skipped-youtube.yaml",
+		);
 	}
 
 	async load(): Promise<void> {
 		if (!existsSync(this.filePath)) {
 			this.state = {};
+		} else {
+			const raw = await readFile(this.filePath, "utf8");
+			const parsed = YAML.parse(raw);
+			this.state = stateSchema.parse(parsed);
+		}
+
+		if (!existsSync(this.skippedFilePath)) {
+			this.skippedState = {};
 			return;
 		}
 
-		const raw = await readFile(this.filePath, "utf8");
-		const parsed = YAML.parse(raw);
-		this.state = stateSchema.parse(parsed);
+		const skippedRaw = await readFile(this.skippedFilePath, "utf8");
+		const skippedParsed = YAML.parse(skippedRaw);
+		this.skippedState = skippedStateSchema.parse(skippedParsed);
 	}
 
 	contains(channelId: string, videoId: string): boolean {
 		const channelIndex = this.state[channelId];
 		return channelIndex ? channelIndex.includes(videoId) : false;
+	}
+
+	isSkipped(channelId: string, videoId: string): boolean {
+		return Boolean(this.skippedState[channelId]?.[videoId]);
+	}
+
+	getSkippedReason(channelId: string, videoId: string): string | null {
+		return this.skippedState[channelId]?.[videoId] ?? null;
 	}
 
 	async markIndexed(channelId: string, videoId: string): Promise<void> {
@@ -47,6 +76,19 @@ export class YouTubeState {
 		await this.persist();
 	}
 
+	async markSkipped(
+		channelId: string,
+		videoId: string,
+		reason: string,
+	): Promise<void> {
+		if (!this.skippedState[channelId]) {
+			this.skippedState[channelId] = {};
+		}
+
+		this.skippedState[channelId][videoId] = reason;
+		await this.persistSkipped();
+	}
+
 	private async persist(): Promise<void> {
 		const dir = path.dirname(this.filePath);
 		await mkdir(dir, { recursive: true });
@@ -55,5 +97,15 @@ export class YouTubeState {
 		const serialized = YAML.stringify(validated);
 		await writeFile(tmp, serialized, "utf8");
 		await rename(tmp, this.filePath);
+	}
+
+	private async persistSkipped(): Promise<void> {
+		const dir = path.dirname(this.skippedFilePath);
+		await mkdir(dir, { recursive: true });
+		const tmp = `${this.skippedFilePath}.tmp`;
+		const validated = skippedStateSchema.parse(this.skippedState);
+		const serialized = YAML.stringify(validated);
+		await writeFile(tmp, serialized, "utf8");
+		await rename(tmp, this.skippedFilePath);
 	}
 }

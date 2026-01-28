@@ -39,9 +39,13 @@ export async function listVideos(
 	return entries.filter((entry) => !!entry.id);
 }
 
+export type VideoDetailsResult =
+	| { ok: true; details: YtDlpVideo }
+	| { ok: false; reason: "members only" | "yt-dlp-failed"; message?: string };
+
 export async function fetchVideoDetails(
 	videoUrl: string,
-): Promise<YtDlpVideo | null> {
+): Promise<VideoDetailsResult> {
 	const result = await runCommand([
 		YT_DLP,
 		"--dump-single-json",
@@ -51,10 +55,14 @@ export async function fetchVideoDetails(
 	]);
 
 	if (result.code !== 0) {
-		return null;
+		const combined = `${result.stderr}\n${result.stdout}`.toLowerCase();
+		if (combined.includes("members-only") || combined.includes("members only")) {
+			return { ok: false, reason: "members only", message: result.stderr };
+		}
+		return { ok: false, reason: "yt-dlp-failed", message: result.stderr };
 	}
 
-	return JSON.parse(result.stdout) as YtDlpVideo;
+	return { ok: true, details: JSON.parse(result.stdout) as YtDlpVideo };
 }
 
 export async function fetchTranscript(

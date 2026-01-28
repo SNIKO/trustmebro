@@ -27,8 +27,25 @@ export async function processVideo(args: {
 
 	try {
 		const videoUrl = buildVideoUrl(entry);
-		const details = await fetchVideoDetails(videoUrl);
-		if (!details || !details.timestamp) {
+		const detailsResult = await fetchVideoDetails(videoUrl);
+		if (!detailsResult.ok) {
+			if (detailsResult.reason === "members only") {
+				await state.markSkipped(publisherId, videoId, "members only");
+				return {
+					videoId,
+					status: "skipped",
+					reason: "members only",
+				};
+			}
+			return {
+				videoId,
+				status: "error",
+				reason: "missing-details",
+			};
+		}
+
+		const details = detailsResult.details;
+		if (!details.timestamp) {
 			return {
 				videoId,
 				status: "error",

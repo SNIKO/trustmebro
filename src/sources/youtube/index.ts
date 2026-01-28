@@ -33,7 +33,10 @@ export function createYoutubeSource(): Source | null {
 			const videos = await listVideos(publisherId);
 			logFetchingItemsCompleted("youtube", publisherId);
 			const newVideos = videos.filter(
-				(v) => v.id && !state.contains(publisherId, v.id),
+				(v) =>
+					v.id &&
+					!state.contains(publisherId, v.id) &&
+					!state.isSkipped(publisherId, v.id),
 			);
 
 			for (const entry of newVideos) {
