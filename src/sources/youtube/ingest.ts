@@ -27,6 +27,7 @@ export async function ingestVideo(args: {
 		source: "youtube",
 		publisher: publisherId,
 		creationDate: publishedAt,
+		overwrite: true,
 		content: transcript,
 		tags: {
 			channelName: details.channel ?? publisherId,
