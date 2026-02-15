@@ -9,7 +9,7 @@ import {
 import { buildSources } from "../../sources/index.js";
 import type { SourceContext } from "../../sources/types.js";
 import {
-	logger,
+	log,
 	logIndexingItemCompleted,
 	logIndexingItemStarted,
 } from "../../ui/logger.js";
@@ -47,11 +47,16 @@ interface IndexCommandFlags {
 	publisher?: string;
 }
 
+interface GreptorClientResult {
+	greptor: Greptor;
+	waitForProcessingComplete: () => Promise<void>;
+}
+
 async function createGreptorClient(
 	config: Config,
 	basePath: string,
 	sources: ReturnType<typeof buildSources>,
-): Promise<Greptor> {
+): Promise<GreptorClientResult> {
 	const tagSchema = Object.entries(config.tags).map(([name, entry]) => ({
 		name,
 		type: entry.type as TagType,
@@ -71,8 +76,28 @@ async function createGreptorClient(
 		}
 	}
 
+	// Track processing state so we can wait for all documents to finish
+	let processingActive = false;
+	let onComplete: (() => void) | null = null;
+
+	const waitForProcessingComplete = async (): Promise<void> => {
+		// Check document counts to detect queued-but-not-yet-started items
+		const counts = await greptor.getDocumentCounts();
+		const hasUnprocessed = Object.values(counts).some(
+			(c) => c.fetched > c.processed,
+		);
+
+		if (!hasUnprocessed && !processingActive) return;
+
+		return new Promise<void>((resolve) => {
+			onComplete = resolve;
+		});
+	};
+
+	let greptor!: Greptor;
+
 	try {
-		const greptor = createGreptor({
+		greptor = await createGreptor({
 			basePath: basePath,
 			topic: config.topic,
 			model: {
@@ -86,12 +111,20 @@ async function createGreptorClient(
 			tagSchema,
 			customProcessingPrompts,
 			hooks: {
+				onProcessingStarted: () => {
+					processingActive = true;
+				},
+				onProcessingCompleted: () => {
+					processingActive = false;
+					onComplete?.();
+					onComplete = null;
+				},
 				onDocumentProcessingStarted: logIndexingItemStarted,
 				onDocumentProcessingCompleted: logIndexingItemCompleted,
 			},
 		});
 
-		return greptor;
+		return { greptor, waitForProcessingComplete };
 	} catch (error) {
 		console.error("Failed to create model:", error);
 		throw error;
@@ -106,7 +139,11 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 		const dataPath = path.join(workspacePath, DATA_DIR_NAME);
 		const config = await loadConfig(configPath);
 		const sources = buildSources();
-		const greptor = await createGreptorClient(config, dataPath, sources);
+		const { greptor, waitForProcessingComplete } = await createGreptorClient(
+			config,
+			dataPath,
+			sources,
+		);
 		const context: SourceContext = { config, workspacePath, greptor };
 
 		const documentsCount = await greptor.getDocumentCounts();
@@ -125,9 +162,9 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 
 			const sourceConfig = config.sources[source.sourceId];
 			if (!sourceConfig) {
-				logger.warn(
-					`[${source.sourceId}] Source not configured, skipping source.`,
-				);
+				log.warn("Source not configured, skipping", {
+					source: source.sourceId,
+				});
 				continue;
 			}
 
@@ -138,11 +175,19 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			if (publisherIds.length > 0) {
 				sourcesToProcess.push({ source, publisherIds });
 			} else {
-				logger.warn(
-					`[${source.sourceId}] No publishers configured, skipping source.`,
-				);
+				log.warn("No publishers configured, skipping", {
+					source: source.sourceId,
+				});
 			}
 		}
+
+		const fetchTotals: Partial<Record<SourceId, number>> = {};
+		for (const { source, publisherIds } of sourcesToProcess) {
+			fetchTotals[source.sourceId] = publisherIds.length;
+		}
+		statusBar.setFetchTotals(fetchTotals);
+
+		await greptor.start();
 
 		// Process each source concurrently, but keep publishers sequential within a source.
 		const results = await Promise.all(
@@ -162,20 +207,21 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 							publisherId,
 							error,
 						});
-						logger.error(
-							{
-								sourceId: source.sourceId,
-								publisherId,
-								err: error,
-							},
-							`[${source.sourceId}] Failed processing publisher '${publisherId}'`,
-						);
+						log.error(`Failed processing publisher '${publisherId}'`, {
+							source: source.sourceId,
+							publisher: publisherId,
+						});
 					}
 				}
 
 				return { sourceId: source.sourceId, errors };
 			}),
 		);
+
+		statusBar.setFetchTotals({});
+
+		await waitForProcessingComplete();
+		await greptor.stop();
 
 		const failed = results.flatMap((r) => r.errors);
 		if (failed.length > 0) {
@@ -184,7 +230,7 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			);
 		}
 
-		logger.info("Indexing run complete");
+		log.info("Indexing run complete");
 	} finally {
 		statusBar.stop();
 	}

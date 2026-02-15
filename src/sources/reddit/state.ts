@@ -1,8 +1,5 @@
-import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
-import YAML from "yaml";
 import { z } from "zod";
+import { BaseSourceState } from "../base-state.js";
 
 /** Threshold for re-indexing: if comments increased by this ratio, re-fetch */
 const COMMENT_INCREASE_THRESHOLD = 1.5;
@@ -20,27 +17,15 @@ const stateSchema = z.record(z.string(), subredditStateSchema).default({});
 
 type State = z.infer<typeof stateSchema>;
 
-export class RedditState {
-	readonly filePath: string;
-	private state: State = {};
+export class RedditState extends BaseSourceState<State> {
+	protected schema = stateSchema;
 
 	constructor(workspacePath: string) {
-		this.filePath = path.join(
-			workspacePath,
-			".trustmebro",
-			"index-reddit.yaml",
-		);
+		super(workspacePath, "index-reddit.yaml");
 	}
 
-	async load(): Promise<void> {
-		if (!existsSync(this.filePath)) {
-			this.state = {};
-			return;
-		}
-
-		const raw = await readFile(this.filePath, "utf8");
-		const parsed = YAML.parse(raw);
-		this.state = stateSchema.parse(parsed);
+	protected getDefaultState(): State {
+		return {};
 	}
 
 	contains(subreddit: string, postId: string): boolean {
@@ -93,7 +78,7 @@ export class RedditState {
 			this.state[subreddit].latestFetched = postCreatedAt;
 		}
 
-		await this.persist();
+		await this.save();
 	}
 
 	async markBackfillComplete(subreddit: string): Promise<void> {
@@ -102,16 +87,6 @@ export class RedditState {
 		} else {
 			this.state[subreddit].backfillComplete = true;
 		}
-		await this.persist();
-	}
-
-	private async persist(): Promise<void> {
-		const dir = path.dirname(this.filePath);
-		await mkdir(dir, { recursive: true });
-		const tmp = `${this.filePath}.tmp`;
-		const validated = stateSchema.parse(this.state);
-		const serialized = YAML.stringify(validated);
-		await writeFile(tmp, serialized, "utf8");
-		await rename(tmp, this.filePath);
+		await this.save();
 	}
 }

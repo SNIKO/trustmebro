@@ -1,9 +1,8 @@
 import {
+	type LogContext,
+	log,
 	logFetchingItemsCompleted,
 	logFetchingItemsStarted,
-	logger,
-	logItemFetched,
-	type SourceLogContext,
 } from "../../ui/logger.js";
 import type { Source, SourceContext } from "../types.js";
 import { hasYtDlp, listVideos } from "./fetch.js";
@@ -12,8 +11,9 @@ import { YouTubeState } from "./state.js";
 
 export function createYoutubeSource(): Source | null {
 	if (!hasYtDlp()) {
-		logger.error(
-			"[youtube] yt-dlp is required for youtube source. Install it from https://github.com/yt-dlp/yt-dlp#installation",
+		log.error(
+			"yt-dlp is required for youtube source. Install it from https://github.com/yt-dlp/yt-dlp#installation",
+			{ source: "youtube" },
 		);
 		return null;
 	}
@@ -22,10 +22,10 @@ export function createYoutubeSource(): Source | null {
 		sourceId: "youtube",
 
 		async runOnce(context: SourceContext, publisherId: string): Promise<void> {
-			const logContext = {
-				sourceId: "youtube",
-				publisherId,
-			} as SourceLogContext;
+			const ctx: LogContext = {
+				source: "youtube",
+				publisher: publisherId,
+			};
 			const state = new YouTubeState(context.workspacePath);
 			await state.load();
 
@@ -53,30 +53,21 @@ export function createYoutubeSource(): Source | null {
 
 				switch (result.status) {
 					case "indexed":
-						logItemFetched({
-							context: logContext,
-							action: "fetched",
-							title: result.title ?? title,
-						});
+						log.info(`Fetched '${result.title ?? title}'`, ctx);
 						break;
 					case "skipped":
-						logItemFetched({
-							context: logContext,
-							action: "skipped",
-							title: result.title ?? title,
-							reason: result.reason ?? "unknown reason",
+						log.info(`Skipped '${result.title ?? title}'`, ctx, {
+							reason: result.reason ?? "unknown",
 						});
 						if (result.reason === "before-start-date") {
 							return;
 						}
 						break;
 					case "error":
-						logItemFetched({
-							context: logContext,
-							action: "failed",
-							title: result.title ?? title,
-							reason: result.reason ?? "unknown error",
-						});
+						log.error(
+							`Failed '${result.title ?? title}' (${result.reason ?? "unknown error"})`,
+							ctx,
+						);
 						break;
 				}
 			}

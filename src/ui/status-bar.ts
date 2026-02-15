@@ -1,33 +1,23 @@
 import pc from "picocolors";
 import type { SourceId } from "../config.js";
-import { getSourceLogo } from "./source-styles.js";
-
-export type StatusBarWorkItem = {
-	sourceId: SourceId;
-	publisherId?: string;
-	title: string;
-};
 
 export type SourceCountEntry = { fetched: number; processed: number };
 export type SourceCounts = Record<string, SourceCountEntry>;
 
 export class StatusBar {
-	private frame = 0;
-	private timer: ReturnType<typeof setInterval> | undefined;
-	private fetching: Array<{ key: string; item: StatusBarWorkItem }> = [];
-	private indexing: Array<{ key: string; item: StatusBarWorkItem }> = [];
-	private listing: Array<{
-		key: string;
-		sourceId: SourceId;
-		publisherId: string;
-	}> = [];
+	// Line 1: fetch progress per source (disappears when done)
+	private fetchTotals: Partial<Record<SourceId, number>> = {};
+	private fetchCompleted: Partial<Record<SourceId, number>> = {};
+	private fetchActive: Partial<Record<SourceId, number>> = {};
+
+	// Line 2: always-visible processing stats + tokens
 	private sourceCounts: SourceCounts = {};
 	private failedBySource: Record<string, Set<string>> = {};
-	private stats = {
-		inputTokens: 0,
-		outputTokens: 0,
-		totalTokens: 0,
-	};
+	private stats = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+	// Internals
+	private frame = 0;
+	private timer: ReturnType<typeof setInterval> | undefined;
 	private spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 	private isRunning = false;
 	private lastRenderLines = 0;
@@ -49,34 +39,35 @@ export class StatusBar {
 		this.clearRenderedBlock();
 	}
 
-	addFetchingItem(key: string, item: StatusBarWorkItem) {
-		this.fetching.push({ key, item });
+	setFetchTotals(totals: Partial<Record<SourceId, number>>) {
+		this.fetchTotals = { ...totals };
+		this.fetchCompleted = {};
+		this.fetchActive = {};
+		for (const source of Object.keys(this.fetchTotals)) {
+			this.fetchCompleted[source as SourceId] = 0;
+			this.fetchActive[source as SourceId] = 0;
+		}
 		this.ensureRunning();
 		this.render();
 	}
 
-	removeFetchingItem(key: string) {
-		this.removeItem(this.fetching, key);
-	}
-
-	addIndexingItem(key: string, item: StatusBarWorkItem) {
-		this.indexing.push({ key, item });
+	startPublisher(sourceId: SourceId) {
+		this.fetchActive[sourceId] = (this.fetchActive[sourceId] ?? 0) + 1;
 		this.ensureRunning();
 		this.render();
 	}
 
-	removeIndexingItem(key: string) {
-		this.removeItem(this.indexing, key);
-	}
-
-	addListingItem(key: string, sourceId: SourceId, publisherId: string) {
-		this.listing.push({ key, sourceId, publisherId });
-		this.ensureRunning();
+	completePublisher(sourceId: SourceId) {
+		const active = this.fetchActive[sourceId] ?? 0;
+		if (active > 0) this.fetchActive[sourceId] = active - 1;
+		this.fetchCompleted[sourceId] = (this.fetchCompleted[sourceId] ?? 0) + 1;
 		this.render();
 	}
 
-	removeListingItem(key: string) {
-		this.removeItem(this.listing, key);
+	updateSourceCounts(counts: SourceCounts) {
+		this.sourceCounts = counts;
+		this.ensureRunning();
+		this.render();
 	}
 
 	markProcessingFailed(sourceId: SourceId, itemId: string) {
@@ -100,27 +91,6 @@ export class StatusBar {
 		}
 	}
 
-	private removeItem(
-		list: typeof this.fetching | typeof this.indexing | typeof this.listing,
-		key: string,
-	) {
-		const idx = list.findIndex((x) => x.key === key);
-		if (idx >= 0) list.splice(idx, 1);
-		this.render();
-	}
-
-	updateStats(stats: Partial<typeof this.stats>) {
-		this.stats = { ...this.stats, ...stats };
-		this.ensureRunning();
-		this.render();
-	}
-
-	updateSourceCounts(counts: SourceCounts) {
-		this.sourceCounts = counts;
-		this.ensureRunning();
-		this.render();
-	}
-
 	addTokens(input: number, output: number) {
 		this.stats.inputTokens += input;
 		this.stats.outputTokens += output;
@@ -131,13 +101,10 @@ export class StatusBar {
 
 	log(msg: string) {
 		this.clearRenderedBlock();
-		// Write the log message
 		process.stdout.write(msg);
-		// Ensure newline if missing (pino-pretty usually adds it, but let's be safe)
 		if (!msg.endsWith("\n")) {
 			process.stdout.write("\n");
 		}
-		// Redraw status bar
 		this.render();
 	}
 
@@ -156,13 +123,35 @@ export class StatusBar {
 	}
 
 	private render() {
-		if (!this.isRunning) {
-			return;
-		}
+		if (!this.isRunning) return;
 
 		this.frame++;
 		const spinner = pc.cyan(this.spinners[this.frame % this.spinners.length]);
+		const cols = process.stdout.columns || 80;
+		const lines: string[] = [];
 
+		// Line 1 per source: fetch progress (only while fetching)
+		for (const source of Object.keys(this.fetchTotals)) {
+			const completed = this.fetchCompleted[source as SourceId] ?? 0;
+			const active = this.fetchActive[source as SourceId] ?? 0;
+			const total = this.fetchTotals[source as SourceId] ?? 0;
+			if (total <= 0 || completed >= total) continue;
+
+			const current = Math.min(total, completed + active);
+			const unit = this.getFetchUnit(source, total);
+			lines.push(
+				this.renderFetchProgressLine({
+					spinner,
+					sourceId: source as SourceId,
+					current,
+					total,
+					unit,
+					cols,
+				}),
+			);
+		}
+
+		// Always-visible stats line: documents per source + token usage
 		const sourceStatsParts: string[] = [];
 		const sources = new Set([
 			...Object.keys(this.sourceCounts),
@@ -173,65 +162,33 @@ export class StatusBar {
 			const count = this.sourceCounts[source] ?? { fetched: 0, processed: 0 };
 			const failed = this.failedBySource[source]?.size ?? 0;
 			const pending = Math.max(0, count.fetched - count.processed - failed);
-			const unprocessedPaths: string[] = [];
+			const details: string[] = [];
 
 			if (pending > 0) {
-				unprocessedPaths.push(
-					`${pc.yellow(String(pending))} ${pc.dim("pending")}`,
-				);
+				details.push(`${pc.yellow(String(pending))} ${pc.dim("pending")}`);
 			}
-
 			if (failed > 0) {
-				unprocessedPaths.push(`${pc.red(String(failed))} ${pc.dim("failed")}`);
+				details.push(`${pc.red(String(failed))} ${pc.dim("failed")}`);
 			}
 
-			const unprocessedString =
-				unprocessedPaths.length > 0
-					? ` ${pc.dim("(")}${unprocessedPaths.join(", ")}${pc.dim(")")}`
+			const detailStr =
+				details.length > 0
+					? ` ${pc.dim("(")}${details.join(", ")}${pc.dim(")")}`
 					: "";
 
 			sourceStatsParts.push(
-				`${pc.dim(source)}: ${pc.green(String(count.fetched))}${unprocessedString}`,
+				`${pc.dim(source)}: ${pc.green(String(count.fetched))}${detailStr}`,
 			);
 		}
 
 		const sourceStatsStr =
-			sourceStatsParts.length > 0
-				? `${sourceStatsParts.join(pc.dim(" | "))}`
-				: "";
+			sourceStatsParts.length > 0 ? sourceStatsParts.join(pc.dim(" | ")) : "";
 
-		const inVal = this.formatNumber(this.stats.inputTokens);
-		const outVal = this.formatNumber(this.stats.outputTokens);
-		const totVal = this.formatNumber(this.stats.totalTokens);
-
-		const tIn = `${pc.dim("Input:")} ${pc.blue(inVal)}`;
-		const tOut = `${pc.dim("Output:")} ${pc.yellow(outVal)}`;
-		const tTotal = `${pc.dim("Total:")} ${pc.white(totVal)}`;
-
+		const tIn = `${pc.dim("Input:")} ${pc.blue(this.formatNumber(this.stats.inputTokens))}`;
+		const tOut = `${pc.dim("Output:")} ${pc.yellow(this.formatNumber(this.stats.outputTokens))}`;
+		const tTotal = `${pc.dim("Total:")} ${pc.white(this.formatNumber(this.stats.totalTokens))}`;
 		const right = `${sourceStatsStr}  │  ${tIn}  ${tOut}  ${tTotal}`;
 
-		const cols = process.stdout.columns || 80;
-		const lines: string[] = [];
-
-		for (const { sourceId, publisherId } of this.listing) {
-			lines.push(
-				this.renderListingLine({ spinner, sourceId, publisherId, cols }),
-			);
-		}
-
-		for (const { item } of this.fetching) {
-			lines.push(
-				this.renderWorkLine({ spinner, action: "fetching", item, cols }),
-			);
-		}
-
-		for (const { item } of this.indexing) {
-			lines.push(
-				this.renderWorkLine({ spinner, action: "indexing", item, cols }),
-			);
-		}
-
-		// Stats line is always present and pinned right.
 		lines.push(this.renderRightAlignedLine({ right, cols }));
 
 		this.clearRenderedBlock();
@@ -239,36 +196,39 @@ export class StatusBar {
 		this.lastRenderLines = lines.length;
 	}
 
-	private renderListingLine(args: {
+	private renderFetchProgressLine(args: {
 		spinner: string;
 		sourceId: SourceId;
-		publisherId: string;
+		current: number;
+		total: number;
+		unit: string;
 		cols: number;
 	}): string {
-		const { spinner, sourceId, publisherId, cols } = args;
-		const logo = getSourceLogo(sourceId);
-		const publisherDisplay = pc.bold(pc.white(publisherId));
+		const { spinner, sourceId, current, total, unit, cols } = args;
+		const sourceLabel = pc.bold(pc.white(sourceId));
+		const currentLabel = pc.green(String(current));
+		const totalLabel = pc.dim(String(total));
+		const unitLabel = pc.dim(unit);
+		const counts = `${pc.dim("(")}${currentLabel}${pc.dim("/")}${totalLabel} ${unitLabel}${pc.dim(")")}`;
 
-		const raw = `${spinner} ${pc.green("fetching items")} ${logo}  ${publisherDisplay}`;
+		const raw = `${spinner} ${pc.cyan("fetching")} ${sourceLabel} ${counts}`;
 		return this.truncateToCols(raw, cols);
 	}
 
-	private renderWorkLine(args: {
-		spinner: string;
-		action: "fetching" | "indexing";
-		item: StatusBarWorkItem;
-		cols: number;
-	}): string {
-		const { spinner, action, item, cols } = args;
-		const logo = getSourceLogo(item.sourceId);
-		const publisherId = item.publisherId
-			? pc.white(item.publisherId)
-			: pc.dim("(unknown)");
-		const color = action === "fetching" ? pc.green : pc.blue;
-		const title = this.truncate(item.title.trim().replace(/\s+/g, " "), 120);
-
-		const raw = `${spinner} ${color(action)} ${logo}  ${publisherId} '${color(title)}'`;
-		return this.truncateToCols(raw, cols);
+	private getFetchUnit(sourceId: string, total: number): string {
+		const plural = total !== 1;
+		switch (sourceId) {
+			case "youtube":
+				return plural ? "channels" : "channel";
+			case "reddit":
+				return plural ? "subreddits" : "subreddit";
+			case "twitter":
+				return plural ? "accounts" : "account";
+			case "telegram":
+				return plural ? "channels" : "channel";
+			default:
+				return plural ? "publishers" : "publisher";
+		}
 	}
 
 	private renderRightAlignedLine(args: {
@@ -291,11 +251,6 @@ export class StatusBar {
 		if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
 		if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
 		return num.toString();
-	}
-
-	private truncate(str: string, max: number): string {
-		if (str.length <= max) return str;
-		return `${str.slice(0, max - 3)}...`;
 	}
 
 	private stripAnsi(str: string): string {

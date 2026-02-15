@@ -1,112 +1,154 @@
-import { Writable } from "node:stream";
 import type {
 	DocumentProcessingCompletedEvent,
 	DocumentProcessingStartedEvent,
-	SourceCounts,
 } from "greptor";
 import pc from "picocolors";
-import pino from "pino";
-import pretty from "pino-pretty";
 import type { SourceId } from "../config.js";
-import { getSourceLogo } from "./source-styles.js";
 import { statusBar } from "./status-bar.js";
 
-export type SourceLogContext = {
-	sourceId: SourceId;
-	publisherId: string;
+// ── Types ──────────────────────────────────────────────────────────────
+
+export type LogContext = {
+	source?: SourceId;
+	publisher?: string;
 };
 
-export type LogStats = {
-	total: number;
-	indexed: number;
-	fetched: number;
-	skipped: number;
-	failed: number;
+export type LogParams = Record<string, string | number>;
+
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+// ── Level gating ───────────────────────────────────────────────────────
+
+const LEVEL_ORDER: Record<LogLevel, number> = {
+	debug: 0,
+	info: 1,
+	warn: 2,
+	error: 3,
 };
 
-export type Action = "fetched" | "indexed" | "skipped" | "failed";
+const currentLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) ?? "info";
 
-const stream = pretty({
-	colorize: true,
-	translateTime: false,
-	ignore: "pid,hostname,time,messageFormat,level",
-	messageFormat: "{msg}",
-	singleLine: true,
-	destination: new Writable({
-		write(chunk, _encoding, callback) {
-			statusBar.log(chunk.toString());
-			callback();
-		},
-	}),
-});
+function shouldLog(level: LogLevel): boolean {
+	return LEVEL_ORDER[level] >= LEVEL_ORDER[currentLevel];
+}
 
-export const logger = pino(
-	{
-		level: process.env.LOG_LEVEL ?? "info",
-		serializers: {
-			err: pino.stdSerializers.err,
-			error: pino.stdSerializers.err,
-		},
+// ── Formatting helpers ─────────────────────────────────────────────────
+
+function timestamp(): string {
+	return pc.dim(new Date().toLocaleTimeString("en-US", { hour12: false }));
+}
+
+function levelLabel(level: LogLevel): string {
+	const tag = level.toUpperCase().padEnd(5);
+	switch (level) {
+		case "debug":
+			return pc.dim(tag);
+		case "info":
+			return pc.gray(tag);
+		case "warn":
+			return pc.yellow(tag);
+		case "error":
+			return pc.red(tag);
+	}
+}
+
+const COL_SOURCE = 10;
+const COL_PUBLISHER = 15;
+
+function sourceTag(source?: SourceId): string {
+	if (!source) return "".padStart(COL_SOURCE);
+	const label = `[${source}]`;
+	return pc.cyan(label.padStart(COL_SOURCE));
+}
+
+function publisherTag(publisher?: string): string {
+	if (!publisher) return "".padEnd(COL_PUBLISHER);
+	const trimmed =
+		publisher.length > COL_PUBLISHER
+			? `${publisher.slice(0, COL_PUBLISHER - 3)}...`
+			: publisher;
+	return pc.magenta(trimmed.padEnd(COL_PUBLISHER));
+}
+
+function formatParams(params?: LogParams): string {
+	if (!params || Object.keys(params).length === 0) return "";
+	const pairs = Object.entries(params)
+		.map(([k, v]) => `${pc.dim(`${k}:`)} ${pc.dim(pc.cyan(String(v)))}`)
+		.join(" ");
+	return `${pc.dim("[")}${pairs}${pc.dim("]")}`;
+}
+
+function truncateTitle(title: string, max = 120): string {
+	const cleaned = title.trim().replace(/\s+/g, " ");
+	if (!cleaned) return "(untitled)";
+	return cleaned.length > max ? `${cleaned.slice(0, max - 3)}...` : cleaned;
+}
+
+function formatDuration(ms: number): string {
+	if (ms < 1000) return `${Math.round(ms)}ms`;
+	return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// ── Core write ─────────────────────────────────────────────────────────
+
+function write(
+	level: LogLevel,
+	message: string,
+	context?: LogContext,
+	params?: LogParams,
+): void {
+	if (!shouldLog(level)) return;
+
+	const parts: string[] = [
+		timestamp(),
+		levelLabel(level),
+		sourceTag(context?.source),
+		publisherTag(context?.publisher),
+		message,
+	];
+
+	const p = formatParams(params);
+	if (p) parts.push(p);
+
+	statusBar.log(`${parts.join(" ")}\n`);
+}
+
+// ── Public API ─────────────────────────────────────────────────────────
+
+export const log = {
+	debug(msg: string, ctx?: LogContext, params?: LogParams): void {
+		write("debug", msg, ctx, params);
 	},
-	stream,
-);
+	info(msg: string, ctx?: LogContext, params?: LogParams): void {
+		write("info", msg, ctx, params);
+	},
+	warn(msg: string, ctx?: LogContext, params?: LogParams): void {
+		write("warn", msg, ctx, params);
+	},
+	error(msg: string, ctx?: LogContext, params?: LogParams): void {
+		write("error", msg, ctx, params);
+	},
+};
+
+// ── Status-bar integration (domain helpers) ────────────────────────────
 
 export function logFetchingItemsStarted(
 	source: SourceId,
-	publisherId: string,
+	_publisherId: string,
 ): void {
-	const key = `${source}:${publisherId}:listing`;
-	statusBar.addListingItem(key, source, publisherId);
+	statusBar.startPublisher(source);
 }
 
 export function logFetchingItemsCompleted(
 	source: SourceId,
-	publisherId: string,
+	_publisherId: string,
 ): void {
-	const key = `${source}:${publisherId}:listing`;
-	statusBar.removeListingItem(key);
-}
-
-export function logItemFetched(args: {
-	context: SourceLogContext;
-	action: Action;
-	title: string;
-	reason?: string;
-}): void {
-	const { context, action, title, reason } = args;
-
-	const color = getColor(action);
-	const dimColor = getDimColor(action);
-
-	const time = new Date().toLocaleTimeString("en-US", { hour12: false });
-	const logo = getSourceLogo(context.sourceId);
-	const publisher = pc.white(context.publisherId);
-	const actionLabel = color(action.toLowerCase());
-	const message = formatItemTitle(action, title);
-	const detail = reason ? ` ${dimColor(`(${reason})`)}` : "";
-
-	const line = `${time} ${actionLabel} ${logo}  ${publisher} ${message}${detail}`;
-
-	if (action === "failed") {
-		logger.warn(line);
-	} else {
-		logger.info(line);
-	}
-}
-
-export function logDocumentsCount(documentsCount: SourceCounts): void {
-	statusBar.updateSourceCounts(documentsCount);
+	statusBar.completePublisher(source);
 }
 
 export function logIndexingItemStarted(
 	event: DocumentProcessingStartedEvent,
 ): void {
-	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
-	statusBar.addIndexingItem(key, {
-		sourceId: event.source as SourceId,
-		publisherId: event.publisher,
-		title: event.label,
-	});
 	statusBar.updateSourceCounts(event.documentsCount);
 }
 
@@ -114,82 +156,25 @@ export function logIndexingItemCompleted(
 	event: DocumentProcessingCompletedEvent,
 ): void {
 	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
-	statusBar.removeIndexingItem(key);
+	const source = event.source as SourceId;
+	const ctx: LogContext = {
+		source,
+		publisher: event.publisher ?? undefined,
+	};
 
 	if (event.success) {
-		statusBar.markProcessingSucceeded(event.source as SourceId, key);
-	} else {
-		statusBar.markProcessingFailed(event.source as SourceId, key);
-	}
-
-	if (event.success) {
+		statusBar.markProcessingSucceeded(source, key);
 		statusBar.addTokens(event.inputTokens, event.outputTokens);
 		statusBar.updateSourceCounts(event.documentsCount);
-	}
 
-	const action = event.success ? "indexed" : "failed";
-	const color = getColor(action);
-	const dimColor = getDimColor(action);
-
-	const time = new Date().toLocaleTimeString("en-US", { hour12: false });
-	const logo = getSourceLogo(event.source as SourceId);
-	const publisher = pc.white(event.publisher ?? "");
-	const actionLabel = color(action.toLowerCase());
-	const message = formatItemTitle(action, event.label);
-
-	let details = "";
-	if (event.success) {
-		const tokens = `${dimColor("[input_tokens: ")}${color(String(event.inputTokens))} ${dimColor("output_tokens: ")}${color(String(event.outputTokens))}${dimColor("]")}`;
-		const elapsed = `${dimColor("in ")}${color(formatDuration(event.elapsedMs))}`;
-		details = ` ${elapsed} ${tokens}`;
+		log.info(`Processed '${truncateTitle(event.label)}'`, ctx, {
+			input_tokens: event.inputTokens,
+			output_tokens: event.outputTokens,
+			elapsed: formatDuration(event.elapsedMs),
+		});
 	} else {
-		details = ` ${dimColor(`(error: ${event.error})`)}`;
+		statusBar.markProcessingFailed(source, key);
+
+		log.error(`Failed '${truncateTitle(event.label)}' (${event.error})`, ctx);
 	}
-
-	const line = `${time} ${actionLabel} ${logo}  ${publisher} ${message}${details}`;
-
-	if (event.success) {
-		logger.info(line);
-	} else {
-		logger.warn(line);
-	}
-}
-
-function formatItemTitle(action: Action, title: string): string {
-	const cleaned = title.trim().replace(/\s+/g, " ");
-	const short = cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned;
-	if (!short) {
-		return pc.dim("'(untitled)'");
-	}
-	return getColor(action)(`'${short}'`);
-}
-
-function getColor(action: Action): (text: string) => string {
-	return (text: string) => {
-		switch (action) {
-			case "fetched":
-				return pc.green(text);
-			case "skipped":
-				return pc.dim(pc.yellow(text));
-			case "failed":
-				return pc.red(text);
-			case "indexed":
-				return pc.blue(text);
-			default:
-				return text;
-		}
-	};
-}
-
-function getDimColor(action: Action): (text: string) => string {
-	return (text: string) => {
-		return pc.dim(getColor(action)(text));
-	};
-}
-
-function formatDuration(ms: number): string {
-	if (ms < 1000) {
-		return `${Math.round(ms)}ms`;
-	}
-	return `${(ms / 1000).toFixed(1)}s`;
 }

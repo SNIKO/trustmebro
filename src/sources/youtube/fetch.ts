@@ -56,7 +56,10 @@ export async function fetchVideoDetails(
 
 	if (result.code !== 0) {
 		const combined = `${result.stderr}\n${result.stdout}`.toLowerCase();
-		if (combined.includes("members-only") || combined.includes("members only")) {
+		if (
+			combined.includes("members-only") ||
+			combined.includes("members only")
+		) {
 			return { ok: false, reason: "members only", message: result.stderr };
 		}
 		return { ok: false, reason: "yt-dlp-failed", message: result.stderr };

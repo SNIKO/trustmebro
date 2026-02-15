@@ -1,8 +1,8 @@
 import {
+	type LogContext,
+	log,
 	logFetchingItemsCompleted,
 	logFetchingItemsStarted,
-	logItemFetched,
-	type SourceLogContext,
 } from "../../ui/logger.js";
 import type { Source, SourceContext } from "../types.js";
 import { listPostsBatched } from "./fetch.js";
@@ -20,10 +20,10 @@ export function createRedditSource(): Source {
 		getProcessingPrompt: getRedditProcessingPrompt,
 
 		async runOnce(context: SourceContext, publisherId: string): Promise<void> {
-			const logContext = {
-				sourceId: "reddit",
-				publisherId,
-			} as SourceLogContext;
+			const ctx: LogContext = {
+				source: "reddit",
+				publisher: publisherId,
+			};
 
 			const state = new RedditState(context.workspacePath);
 			await state.load();
@@ -70,7 +70,7 @@ export function createRedditSource(): Source {
 							state,
 							minCommentCount,
 						});
-						logResult(logContext, result);
+						logResult(ctx, result);
 					} else if (
 						state.shouldReindex(publisherId, post.id, post.num_comments)
 					) {
@@ -101,48 +101,32 @@ export function createRedditSource(): Source {
 					minCommentCount,
 					isReindex: true,
 				});
-				logResult(logContext, result);
+				logResult(ctx, result);
 			}
 		},
 	};
 }
 
 function logResult(
-	logContext: SourceLogContext,
+	ctx: LogContext,
 	result: { status: string; title?: string; reason?: string },
 ): void {
 	const title = result.title ?? "<unknown>";
 
 	switch (result.status) {
 		case "indexed":
-			logItemFetched({
-				context: logContext,
-				action: "fetched",
-				title,
-			});
+			log.info(`Fetched '${title}'`, ctx);
 			break;
 		case "updated":
-			logItemFetched({
-				context: logContext,
-				action: "fetched",
-				title: `${title} (re-indexed)`,
-			});
+			log.info(`Re-indexed '${title}'`, ctx);
 			break;
 		case "skipped":
-			logItemFetched({
-				context: logContext,
-				action: "skipped",
-				title,
-				reason: result.reason ?? "unknown reason",
+			log.info(`Skipped '${title}'`, ctx, {
+				reason: result.reason ?? "unknown",
 			});
 			break;
 		case "error":
-			logItemFetched({
-				context: logContext,
-				action: "failed",
-				title,
-				reason: result.reason ?? "unknown error",
-			});
+			log.error(`Failed '${title}' (${result.reason ?? "unknown error"})`, ctx);
 			break;
 	}
 }
