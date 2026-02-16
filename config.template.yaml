@@ -10,46 +10,51 @@ startDate: 2025-12-01
 # ============================================================================
 # TOPIC
 # ============================================================================
-# High-level description of what you're tracking. Used by Greptor's LLM
+# High-level description of what you're tracking. Used by the LLM
 # to understand context when extracting tags and summarizing content.
 topic: "Stock market, investing, and financial markets (equities, ETFs, portfolio management, macro economics)"
 
 # ============================================================================
-# MODEL CONFIGURATION
+# INDEXING CONFIGURATION
 # ============================================================================
-# Configure the LLM provider for content processing (tagging, summarization).
-# TrustMeBro uses Greptor which supports AI SDK providers.
-model:
-  # Provider package name - must be installed via npm/bun
-  # Supported providers:
-  #   - @ai-sdk/openai
-  #   - @ai-sdk/anthropic
-  #   - @ai-sdk/openai-compatible
-  #   - @ai-sdk/groq
-  #   - @ai-sdk/google
-  #   - @ai-sdk/mistral
-  #   - @ai-sdk/cohere
-  #   - @ai-sdk/cerebras
-  #   - @ai-sdk/deepinfra
-  #   - @ai-sdk/xai
-  #   - @ai-sdk/perplexity
-  #   - @ai-sdk/togetherai
-  #   - @ai-sdk/amazon-bedrock
-  #   - @ai-sdk/azure
-  #   - @ai-sdk/google-vertex
-  #   - @openrouter/ai-sdk-provider
-  provider: "@ai-sdk/openai-compatible"
+# Configure the LLM provider and workers for content processing (tagging, summarization).
+# All AI SDK providers come bundled — no need to install them separately.
+indexing:
+  # Number of parallel processing workers (default: 5)
+  workers: 5
 
-  # Model identifier (format varies by provider)
-  model: "z-ai/glm4.7"
+  # Model configuration
+  model:
+    # Provider package name
+    # Supported providers (all bundled):
+    #   - @ai-sdk/openai
+    #   - @ai-sdk/anthropic
+    #   - @ai-sdk/openai-compatible
+    #   - @ai-sdk/groq
+    #   - @ai-sdk/google
+    #   - @ai-sdk/mistral
+    #   - @ai-sdk/cohere
+    #   - @ai-sdk/cerebras
+    #   - @ai-sdk/deepinfra
+    #   - @ai-sdk/xai
+    #   - @ai-sdk/perplexity
+    #   - @ai-sdk/togetherai
+    #   - @ai-sdk/amazon-bedrock
+    #   - @ai-sdk/azure
+    #   - @ai-sdk/google-vertex
+    #   - @openrouter/ai-sdk-provider
+    provider: "@ai-sdk/openai-compatible"
 
-  # Provider-specific options (varies by provider)
-  # Use "env.VARIABLE_NAME" to reference environment variables
-  options:
-    # OpenAI Compatible example (NVIDIA NIM):
-    baseURL: "https://integrate.api.nvidia.com/v1"
-    name: "nvidia"
-    apiKey: "env.NVIDIA_API_KEY"
+    # Model identifier (format varies by provider)
+    model: "z-ai/glm4.7"
+
+    # Provider-specific options (varies by provider)
+    # Use "env.VARIABLE_NAME" to reference environment variables
+    options:
+      # OpenAI Compatible example (NVIDIA NIM):
+      baseURL: "https://integrate.api.nvidia.com/v1"
+      name: "nvidia"
+      apiKey: "env.NVIDIA_API_KEY"
 
 # ============================================================================
 # SOURCES
@@ -88,7 +93,7 @@ sources:
 # ============================================================================
 # TAG SCHEMA
 # ============================================================================
-# Define structured metadata that Greptor's LLM will extract from content.
+# Define structured metadata that the LLM will extract from content.
 # Tags enable powerful filtering and analysis via ripgrep.
 #
 # Each tag has:

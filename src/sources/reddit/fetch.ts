@@ -1,9 +1,10 @@
-import { sleep } from "bun";
 import type {
 	RedditComment,
 	RedditPost,
 	RedditPostWithComments,
 } from "./types.js";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const USER_AGENT = "trustmebro:v0.6.6 (sentiment analysis bot by /u/swniko)";
 const REDDIT_API_BASE = "https://www.reddit.com";

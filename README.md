@@ -1,270 +1,214 @@
+<div align="left">
+
 # TrustMeBro
 
-> **Your AI Agent's Social Media Research Assistant**: Fetch and index social media content for agentic search workflows.
+**Turn social media noise into a searchable knowledge base for AI agents.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![npm](https://img.shields.io/npm/v/trustmebro)](https://www.npmjs.com/package/trustmebro)
 
-TrustMeBro is a CLI tool that fetches social media content (YouTube transcripts, Telegram posts, Twitter threads) and feeds it to [Greptor](https://github.com/greptorio/greptor) for indexing. Together, they transform scattered social media discussions into a searchable knowledge base for AI agents.
+Fetch content from YouTube, Reddit, and more — process it with LLMs — and let your AI agent search, analyze, and synthesize insights across all of it.
 
-**The workflow:**
-1. **TrustMeBro fetches** → Pulls content from YouTube, Telegram, Twitter based on your config
-2. **Greptor indexes** → Cleans, chunks, tags, and structures the content for grep-ability
-3. **Agent searches** → Uses ripgrep to find insights, patterns, and answers
+**Supported platforms:** YouTube, Reddit · **Coming soon:** Telegram, Twitter
+
+</div>
+
+---
 
 ## Why TrustMeBro?
 
-Social media contains valuable insights — market sentiment, expert analysis, breaking news, community discussions — but it's scattered, noisy, and hard to process at scale.
+Ever felt that low-key anxiety when you're 47 videos behind on your favorite finance YouTubers, three Reddit threads deep at 2 AM, and you *still* feel like you're missing something important? The FOMO is real. You can't watch everything, read everything, and remember everything — and yet somehow you're supposed to make informed decisions based on all of it.
 
-**Problems with manual tracking:**
-- **Time sink**: Watching dozens of YouTube videos or scrolling Twitter/Reddit for hours
-- **No memory**: Good insights get lost in the feed
-- **No search**: Can't grep your social media consumption history
-- **Context switching**: Jumping between platforms breaks focus
+We've all been there, and TrustMeBro is here to help.
 
-**Terminology:**
-- **Platform** — the service (YouTube, Telegram, Twitter, etc.)
-- **Feed** — the account/channel/subreddit you track on that platform
+It fetches all the content you care about, runs it through an LLM, and spits out a searchable, tagged, grep-friendly knowledge base. Then you point ClaudeCode (or any other AI agent) at it and ask questions like a normal person instead of doom-scrolling until 3 AM.
 
-**TrustMeBro + Greptor solve this by:**
-- **Automated fetching**: Pull content from your tracked feeds on each platform on a schedule
-- **Persistent storage**: All content saved as searchable Markdown
-- **Structured tagging**: LLM-powered extraction of tickers, sentiment, topics, narratives
-- **Agent-ready**: Your AI assistant can research on your behalf
+| The pain | The fix |
+|---|---|
+| 47 unwatched videos, infinite Reddit scroll | **Automated fetching** — pulls everything from your tracked sources |
+| "I saw a great take on NVDA last week... somewhere" | **Persistent storage** — every piece of content saved as searchable Markdown |
+| Can't `ctrl+F` your YouTube watch history | **Structured tagging** — LLM extracts tickers, sentiment, topics, narratives |
+| Alt-tabbing between 6 platforms like a maniac | **Agent-ready output** — ask your AI to synthesize it all in one place |
+
+---
 
 ## Quick Start
 
-### Installation
+### 1. Install
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/trustmebro.git
-cd trustmebro
+# npm
+npm install -g trustmebro
 
-# Install dependencies
-bun install
+# bun
+bun install -g trustmebro
 
-# Build
-bun run build
+# or run directly without installing
+npx trustmebro index
+bunx trustmebro index
 ```
 
-### Create a Workspace
+> **Prerequisite:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) is required for YouTube fetching.
 
-Create a folder where you'll store configs and fetched content:
+### 2. Create a Workspace
 
 ```bash
-mkdir -p ~/stocks
-cd ~/stocks
+mkdir -p ~/stocks && cd ~/stocks
 ```
 
-Copy the template config and customize it:
+Create a `config.yaml` in your workspace directory. See [config.template.yaml](config.template.yaml) for a fully documented example with inline comments.
 
-```bash
-cp /path/to/trustmebro/config.template.yaml ./config.yaml
-```
+### 3. Configure the Model
 
-See [config.template.yaml](config.template.yaml) for a fully documented configuration with inline comments.
+TrustMeBro uses an LLM to process and tag content. It relies on [AI SDK providers](https://sdk.vercel.ai/providers/ai-sdk-providers) for model access, so you can choose from a wide range of providers and models based on your needs and budget.
 
-### Configure the Model
-
-TrustMeBro uses an LLM (via [Greptor](https://github.com/greptorio/greptor)) to process and tag content. You'll need to:
-
-1. **Choose a provider** from the [AI SDK ecosystem](https://sdk.vercel.ai/providers/ai-sdk-providers):
-   - `@ai-sdk/openai` - OpenAI (GPT-4, GPT-4o, etc.)
-   - `@ai-sdk/anthropic` - Anthropic (Claude)
-   - `@ai-sdk/groq` - Groq (fast inference)
-   - `@ai-sdk/openai-compatible` - OpenAI-compatible endpoints (NVIDIA NIM, OpenRouter, etc.)
-   - And [many more](https://sdk.vercel.ai/providers/ai-sdk-providers)...
-
-2. **Install the provider package**:
-   ```bash
-   bun add @ai-sdk/openai  # or your chosen provider
-   ```
-
-3. **Get an API key** from your provider and set it as an environment variable:
+1. **Set your API key** as an environment variable:
    ```bash
    export OPENAI_API_KEY="sk-..."
    # or add to ~/.bashrc, ~/.zshrc, etc.
    ```
 
-4. **Configure in config.yaml**:
+2. **Reference it in `config.yaml`:**
    ```yaml
-   model:
-     provider: "@ai-sdk/openai"
-     model: "gpt-4o-mini"
-     options:
-       apiKey: "env.OPENAI_API_KEY"  # References environment variable
+   indexing:
+     workers: 5
+     model:
+       provider: "@ai-sdk/openai"
+       model: "gpt-4o-mini"
+       options:
+         apiKey: "env.OPENAI_API_KEY"  # References environment variable
    ```
 
-**Environment variable syntax:** Use `"env.VARIABLE_NAME"` in your config to reference environment variables. This keeps secrets out of your config files.
+> **Tip:** Use `"env.VARIABLE_NAME"` syntax in your config to keep secrets out of config files.
 
-### Configure Sources and Tags
+### 4. Configure Sources and Tags
 
 Edit your `config.yaml` to specify:
 
-- **`startDate`**: Fetch content from this date forward (YYYY-MM-DD)
-- **`topic`**: High-level description for context (used by the LLM)
-- **`sources.youtube.publishers`**: List of YouTube channel handles (with `@` prefix)
-- **`tags`**: Structured metadata to extract (tickers, sentiment, sectors, etc.)
+- **`startDate`** — Fetch content from this date forward (YYYY-MM-DD)
+- **`topic`** — High-level description for LLM context
+- **`sources.youtube.publishers`** — YouTube channel handles (with `@` prefix)
+- **`sources.reddit.publishers`** — Subreddit names to track
+- **`tags`** — Structured metadata to extract (tickers, sentiment, sectors, narratives, etc.)
 
 See [config.template.yaml](config.template.yaml) for detailed documentation on all options.
 
-### Run the Fetcher
+### 5. Run Indexing
 
 ```bash
-# Navigate to your workspace directory
 cd ~/stocks
 
-# Fetch content from all configured platforms/feeds
+# Index all configured sources
 trustmebro index
 
-# Fetch from a specific platform only
+# Index a specific source
 trustmebro index --source youtube
 
-# Fetch from a specific publisher only
+# Index a specific publisher
 trustmebro index --source youtube --publisher @JosephCarlsonShow
+
+# Use a different workspace
+trustmebro index --workspacePath /path/to/workspace
 ```
 
-### What Happens Next
+---
 
-TrustMeBro will:
+## How It Works
 
-1. **Connect to sources** using the publishers in your config
-2. **Fetch content** since `startDate` (or from last sync)
-3. **Write to output folder** in Greptor-compatible format
-4. **Track progress** in a tiny YAML state file to avoid duplicates
-5. **Hand off to Greptor** for background processing (cleaning, chunking, tagging)
+TrustMeBro runs a three-step pipeline:
 
-After the initial fetch, you'll have a structure like:
+1. **Fetch** — Pulls content since `startDate` (or last sync) from all configured sources
+2. **Process** — Chunks, tags, and enriches content with LLMs using your configured tag schema
+3. **Write** — Outputs grep-friendly Markdown organized by source, publisher, and date
+
+After indexing, your workspace looks like this:
 
 ```
 ~/stocks/
-  .claude/
-    skills/
-      search-youtube-telegram-twitter/
-        SKILL.md
-  content/
-    raw/
-      youtube/
-        JosephCarlsonShow/
-          2025-12/
-            2025-12-15-NVIDIA-Earnings-Analysis.md
-        BenFelixCSI/
-          2025-12/
-            2025-12-20-Index-Investing-vs-Active-Management.md
-    processed/
-      youtube/
-        JosephCarlsonShow/
-          2025-12/
-            2025-12-15-NVIDIA-Earnings-Analysis.md
+  .trustmebro/              # Internal state (auto-managed)
+  data/
+    social/
+      raw/                   # Original fetched content
+        youtube/
+          everythingmoney/
+            2025-12/
+              2025-12-15-nvidia-earnings-analysis.md
+        reddit/
+          investing/
+            2025-12/
+              2025-12-20-best-etf-for-long-term-growth.md
+      processed/             # LLM-enriched, search-optimized content
+        youtube/
+          everythingmoney/
+            2025-12/
+              2025-12-15-nvidia-earnings-analysis.md
+        reddit/
+          investing/
+            2025-12/
+              2025-12-20-best-etf-for-long-term-growth.md
   config.yaml
 ```
 
-## Searching Your Content
+---
 
-Once TrustMeBro has fetched and Greptor has indexed your content, you can search it using ripgrep:
+## AI Agent Integration
 
-### Basic Searches
+The real power of TrustMeBro is pairing indexed content with AI agents that can search and reason over it.
 
-```bash
-# Find all mentions of a specific ticker
-rg -n -C 6 "ticker=NVDA" content/processed/
+### Generate Agent Skills
 
-# Search for bullish sentiment
-rg -n -C 6 "sentiment=bullish" content/processed/
-
-# Case-insensitive full-text search
-rg -i -n -C 3 "federal reserve" content/processed/
-
-# Search within YouTube content only
-rg -n -C 6 "sector=technology" content/processed/youtube/
-```
-
-### Time-Based Searches
+TrustMeBro can generate skills that teach your agent to search indexed content with ripgrep:
 
 ```bash
-# Content from December 2025
-rg -n -C 6 "ticker=TSLA" content/processed/ --glob "**/2025-12/*.md"
-
-# This month's bullish calls
-rg -n -C 6 "sentiment=bullish" content/processed/ --glob "**/$(date +%Y-%m)/*.md"
-
-# Specific YouTuber's content
-rg -n -C 6 "ticker=AAPL" content/processed/youtube/JosephCarlsonShow/
+cd ~/stocks
+trustmebro generate skills
 ```
 
-### Multi-Tag Filters
+Select your agent type and TrustMeBro will generate a skill per source (e.g., `search-youtube`, `search-reddit`) tailored to your topic, tags, and directory structure.
 
-```bash
-# Tech stocks with bullish sentiment
-rg -l "sector=technology" content/processed/ | xargs rg -n -C 6 "sentiment=bullish"
+These skills are a good starting point — customize them to fit your content domain.
 
-# Strong buy recommendations for dividend stocks
-rg -l "investment_style=dividend" content/processed/ | xargs rg -n -C 6 "recommendation=strong_buy"
+### Start Chatting
 
-# AI narrative with specific tickers
-rg -n -C 6 "narrative=.*ai" content/processed/ | rg "ticker=NVDA\|ticker=.*,NVDA"
-```
+Once set up, ask Claude Code (or any other agent):
 
-### Discovery & Analysis
+> *"What's the sentiment on NVIDIA in the last month?"*
 
-```bash
-# List all tickers mentioned
-rg -o "ticker=[^\n]+" content/processed/ | cut -d= -f2 | tr ',' '\n' | sort -u
+> *"Find all strong buy recommendations from December 2025"*
 
-# Count sentiment distribution
-rg -o "sentiment=[^\n]+" content/processed/ | cut -d= -f2 | sort | uniq -c | sort -rn
+> *"Compare sentiment on Tesla across YouTube vs Reddit"*
 
-# Top 20 most discussed companies
-rg -o "company=[^\n]+" content/processed/ | cut -d= -f2 | tr ',' '\n' | sort | uniq -c | sort -rn | head -20
+> *"What narratives are trending in tech stocks this quarter?"*
 
-# Track narrative evolution over time
-for month in 2025-{10..12}; do
-  echo "=== $month ==="
-  rg -o "narrative=[^\n]+" content/processed/ --glob "**/$month/*.md" | cut -d= -f2 | tr ',' '\n' | sort | uniq -c | sort -rn | head -5
-done
-```
+> *"Show me dividend stock discussions with hold or sell recommendations"*
 
-## Agent Integration
+Your agent will use ripgrep to search the indexed content and synthesize insights across sources.
 
-The real power comes when you let AI agents search your indexed content:
-
-### Claude Code Skill (Auto-Generated)
-
-TrustMeBro automatically generates a Claude Code skill with search instructions based on your config and tag schema. The skill is saved under:
-
-### Example Agent Queries
-
-Once set up, you can ask Claude (or any agent with ripgrep access):
-
-> "What's the sentiment on NVIDIA in the last month?"
-
-> "Find all strong buy recommendations from December 2025"
-
-> "Compare sentiment on Tesla across YouTube vs Twitter"
-
-> "What narratives are trending in tech stocks this quarter?"
-
-> "Show me dividend stock discussions with hold or sell recommendations"
-
-The agent will use ripgrep to search your indexed content and synthesize insights from multiple platforms/feeds.
+---
 
 ## Use Cases
 
-### Investment Research
+### Stock Market Research
 
-Track YouTube finance channels, Reddit investing communities, and Twitter analysts to:
-- Monitor sentiment on stocks in your portfolio
-- Discover emerging narratives before they go mainstream
-- Track analyst recommendations over time
-- Research specific tickers or sectors
+- Create a workspace `~/stocks` with your favorite YouTube finance channels and investing subreddits
+- Connect finance-related MCP servers (Yahoo Finance, Seeking Alpha, etc.)
+- Store your portfolio holdings and watchlists alongside the indexed content
+- Ask your agent to find sentiment, recommendations, narratives, and insights
 
-### Crypto Analysis
+### Health & Wellness
 
-Follow crypto influencers, Telegram channels, and Twitter accounts to:
-- Gauge market sentiment on coins/tokens
-- Identify trending projects and narratives
-- Monitor regulatory news and community reactions
-- Analyze technical discussions and developer updates
+- Create a workspace `~/health` with YouTube health channels and medical subreddits
+- Connect medical MCP servers (PubMed, Medscape, etc.)
+- Store your medical history and test results in the workspace
+- Ask your agent about trends, new research, supplements, and recommendations specific to your goals
+
+### Real Estate
+
+- Create a workspace `~/realestate` with real estate channels and subreddits for your market
+- Connect real estate MCP servers and write skills for accessing government APIs (property records, zoning, etc.)
+- Ask your agent about market trends, specific properties, suburbs, and investment opportunities
+
+---
 
 ## License
 

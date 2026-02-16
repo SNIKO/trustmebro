@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -12,8 +13,12 @@ type FlatPlaylist = {
 };
 
 export function hasYtDlp(): boolean {
-	const ytdlpPath = Bun.which(YT_DLP);
-	return !!ytdlpPath;
+	try {
+		execFileSync("which", [YT_DLP], { stdio: "pipe" });
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 export async function listVideos(
