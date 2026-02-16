@@ -1,6 +1,6 @@
 {
 	"name": "@nikosv/trustmebro",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Fetch and index social media content for agentic workflows",
 	"type": "module",
 	"license": "MIT",
