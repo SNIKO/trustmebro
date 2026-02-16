@@ -1,0 +1,5 @@
+---
+"trustmebro": minor
+---
+
+Initial release
