@@ -21,7 +21,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nichochar/trustmebro.git"
+		"url": "git+https://github.com/SNIKO/trustmebro.git"
 	},
 	"bin": {
 		"trustmebro": "dist/app.js"

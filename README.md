@@ -5,7 +5,8 @@
 **Turn social media noise into a searchable knowledge base for AI agents.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![npm](https://img.shields.io/npm/v/trustmebro)](https://www.npmjs.com/package/trustmebro)
+[![CI](https://github.com/SNIKO/trustmebro/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/SNIKO/trustmebro/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@nikosv/trustmebro)](https://www.npmjs.com/package/@nikosv/trustmebro)
 
 Fetch content from YouTube, Reddit, and more — process it with LLMs — and let your AI agent search, analyze, and synthesize insights across all of it.
 
@@ -38,14 +39,14 @@ It fetches all the content you care about, runs it through an LLM, and spits out
 
 ```bash
 # npm
-npm install -g trustmebro
+npm install -g @nikosv/trustmebro
 
 # bun
-bun install -g trustmebro
+bun install -g @nikosv/trustmebro
 
 # or run directly without installing
-npx trustmebro index
-bunx trustmebro index
+npx @nikosv/trustmebro index
+bunx @nikosv/trustmebro index
 ```
 
 > **Prerequisite:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) is required for YouTube fetching.
