@@ -1,6 +1,6 @@
 {
 	"name": "@nikosv/trustmebro",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Fetch and index social media content for agentic workflows",
 	"type": "module",
 	"license": "MIT",
@@ -45,6 +45,7 @@
 		"typecheck": "tsc --noEmit",
 		"prepublishOnly": "npm run build",
 		"changeset": "bunx --bun changeset",
+		"version": "bunx --bun changeset version",
 		"version-packages": "bunx --bun changeset version",
 		"release": "bunx --bun changeset publish"
 	},
