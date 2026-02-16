@@ -1,8 +1,7 @@
-name: Publish
+name: Publish (Manual)
 
 on:
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -19,12 +18,13 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
       - run: bun run build
 
       - run: npm whoami
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}			
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - run: npm publish --access public
         env:
