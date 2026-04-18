@@ -76,6 +76,7 @@
 		"@ai-sdk/togetherai": "1.0.30",
 		"@ai-sdk/vercel": "1.0.31",
 		"@ai-sdk/xai": "2.0.42",
+		"@clack/prompts": "1.0.0-alpha.1",
 		"@stricli/core": "^1.2.5",
 		"ai": "^4.3.19",
 		"picocolors": "^1.1.1",
