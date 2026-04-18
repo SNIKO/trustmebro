@@ -208,8 +208,8 @@ export function startWorkers(args: {
 					...meta,
 					documentsCount: storage.getCounts(),
 					elapsedMs: Date.now() - start,
-					inputTokens: usage?.promptTokens ?? 0,
-					outputTokens: usage?.completionTokens ?? 0,
+					inputTokens: usage?.inputTokens ?? 0,
+					outputTokens: usage?.outputTokens ?? 0,
 					totalTokens: usage?.totalTokens ?? 0,
 				}),
 			);
