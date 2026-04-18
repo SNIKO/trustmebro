@@ -1,9 +1,9 @@
+import pc from "picocolors";
+import type { SourceId } from "../config.js";
 import type {
 	DocumentProcessingCompletedEvent,
 	DocumentProcessingStartedEvent,
-} from "greptor";
-import pc from "picocolors";
-import type { SourceId } from "../config.js";
+} from "../content/types.js";
 import { statusBar } from "./status-bar.js";
 
 // ── Types ──────────────────────────────────────────────────────────────

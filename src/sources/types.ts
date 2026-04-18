@@ -1,10 +1,10 @@
-import type { Greptor } from "greptor";
 import type { Config, SourceId } from "../config.js";
+import type { ContentEngine } from "../content/index.js";
 
 export interface SourceContext {
 	config: Config;
 	workspacePath: string;
-	greptor: Greptor;
+	engine: ContentEngine;
 }
 
 export interface Source {

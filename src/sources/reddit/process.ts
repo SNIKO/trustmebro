@@ -58,7 +58,7 @@ export async function processPost(args: {
 			};
 		}
 
-		const ingested = await ingestPostToGreptor({
+		const ingested = await ingestPost({
 			context,
 			subreddit,
 			postData,
@@ -92,7 +92,7 @@ export async function processPost(args: {
 	}
 }
 
-async function ingestPostToGreptor(args: {
+async function ingestPost(args: {
 	context: SourceContext;
 	subreddit: string;
 	postData: RedditPostWithComments;
@@ -131,9 +131,8 @@ async function ingestPostToGreptor(args: {
 
 	const content = contentParts.join("\n");
 
-	const result = await context.greptor.eat({
+	const result = await context.engine.add({
 		id: post.id,
-		format: "text",
 		label: post.title,
 		source: "reddit",
 		publisher: subreddit,

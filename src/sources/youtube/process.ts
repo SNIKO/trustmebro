@@ -64,7 +64,7 @@ export async function processVideo(args: {
 			};
 		}
 
-		const ingested = await ingestVideoToGreptor({
+		const ingested = await ingestVideo({
 			context,
 			publisherId,
 			videoId,
@@ -95,7 +95,7 @@ export async function processVideo(args: {
 	}
 }
 
-async function ingestVideoToGreptor(args: {
+async function ingestVideo(args: {
 	context: SourceContext;
 	publisherId: string;
 	videoId: string;
@@ -114,9 +114,8 @@ async function ingestVideoToGreptor(args: {
 		publishedAt,
 	} = args;
 
-	const result = await context.greptor.eat({
+	const result = await context.engine.add({
 		id: videoId,
-		format: "text",
 		label: details.title ?? videoId,
 		source: "youtube",
 		publisher: publisherId,
