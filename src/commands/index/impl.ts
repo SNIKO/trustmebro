@@ -15,7 +15,6 @@ import {
 	logIndexingItemCompleted,
 	logIndexingItemStarted,
 } from "../../ui/logger.js";
-import { statusBar } from "../../ui/status-bar.js";
 
 export interface IndexCommandFlags {
 	workspacePath?: string;
@@ -157,7 +156,6 @@ async function checkAuthentication(
 }
 
 export async function index(flags: IndexCommandFlags): Promise<void> {
-	statusBar.start();
 	try {
 		const workspacePath = flags.workspacePath ?? ".";
 		const config = await loadConfig(path.join(workspacePath, "config.yaml"));
@@ -184,17 +182,9 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			engine: contentEngine,
 			model,
 		};
-		statusBar.updateSourceCounts(contentEngine.getCounts());
+		log.updateSourceCounts(contentEngine.getCounts());
 
 		const sourcesToProcess = filterSourcesToProcess(sources, config, flags);
-		statusBar.setFetchTotals(
-			Object.fromEntries(
-				sourcesToProcess.map(({ source, publisherIds }) => [
-					source.sourceId,
-					publisherIds.length,
-				]),
-			),
-		);
 
 		await checkAuthentication(sourcesToProcess.map((s) => s.source), workspacePath);
 
@@ -206,7 +196,6 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			),
 		);
 
-		statusBar.setFetchTotals({});
 		await contentEngine.waitForIdle();
 		await contentEngine.stop();
 
@@ -219,6 +208,5 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 
 		log.info("Indexing run complete");
 	} finally {
-		statusBar.stop();
 	}
 }

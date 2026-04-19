@@ -4,7 +4,6 @@ import type {
 	DocumentProcessingCompletedEvent,
 	DocumentProcessingStartedEvent,
 } from "../content/types.js";
-import { statusBar } from "./status-bar.js";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -89,6 +88,24 @@ function formatDuration(ms: number): string {
 	return `${(ms / 1000).toFixed(1)}s`;
 }
 
+// ── Progress tracking state ─────────────────────────────────────────────
+
+type SourceCountEntry = { fetched: number; processed: number };
+type SourceCounts = Record<string, SourceCountEntry>;
+
+let sourceCounts: SourceCounts = {};
+let totalFailed = 0;
+
+function getTotalStats(): { total: number; processed: number; failed: number } {
+	let total = 0;
+	let processed = 0;
+	for (const counts of Object.values(sourceCounts)) {
+		total += counts.fetched;
+		processed += counts.processed;
+	}
+	return { total, processed, failed: totalFailed };
+}
+
 // ── Core write ─────────────────────────────────────────────────────────
 
 function write(
@@ -110,7 +127,7 @@ function write(
 	const p = formatParams(params);
 	if (p) parts.push(p);
 
-	statusBar.log(`${parts.join(" ")}\n`);
+	console.log(parts.join(" "));
 }
 
 // ── Public API ─────────────────────────────────────────────────────────
@@ -128,34 +145,36 @@ export const log = {
 	error(msg: string, ctx?: LogContext, params?: LogParams): void {
 		write("error", msg, ctx, params);
 	},
+	updateSourceCounts(counts: SourceCounts): void {
+		sourceCounts = counts;
+	},
 };
 
-// ── Status-bar integration (domain helpers) ────────────────────────────
+// ── Domain helpers ───────────────────────────────────────────────────────
 
 export function logFetchingItemsStarted(
-	source: SourceId,
+	_source: SourceId,
 	_publisherId: string,
-): void {
-	statusBar.startPublisher(source);
-}
+): void {}
 
 export function logFetchingItemsCompleted(
 	source: SourceId,
-	_publisherId: string,
+	publisherId: string,
 ): void {
-	statusBar.completePublisher(source);
+	const ctx: LogContext = { source, publisher: publisherId };
+	const params: LogParams = getTotalStats();
+	log.info(`Fetched '${publisherId}'`, ctx, params);
 }
 
 export function logIndexingItemStarted(
 	event: DocumentProcessingStartedEvent,
 ): void {
-	statusBar.updateSourceCounts(event.documentsCount);
+	sourceCounts = event.documentsCount;
 }
 
 export function logIndexingItemCompleted(
 	event: DocumentProcessingCompletedEvent,
 ): void {
-	const key = `${event.source}:${event.publisher ?? ""}:${event.label}`;
 	const source = event.source as SourceId;
 	const ctx: LogContext = {
 		source,
@@ -163,18 +182,15 @@ export function logIndexingItemCompleted(
 	};
 
 	if (event.success) {
-		statusBar.markProcessingSucceeded(source, key);
-		statusBar.addTokens(event.inputTokens, event.outputTokens);
-		statusBar.updateSourceCounts(event.documentsCount);
-
-		log.info(`Processed '${truncateTitle(event.label)}'`, ctx, {
-			input_tokens: event.inputTokens,
-			output_tokens: event.outputTokens,
+		sourceCounts = event.documentsCount;
+		const params: LogParams = {
 			elapsed: formatDuration(event.elapsedMs),
-		});
+			...getTotalStats(),
+		};
+		log.info(`Processed '${truncateTitle(event.label)}'`, ctx, params);
 	} else {
-		statusBar.markProcessingFailed(source, key);
-
-		log.error(`Failed '${truncateTitle(event.label)}' (${event.error})`, ctx);
+		totalFailed++;
+		const params: LogParams = getTotalStats();
+		log.error(`Failed '${truncateTitle(event.label)}' (${event.error})`, ctx, params);
 	}
 }
