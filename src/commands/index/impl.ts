@@ -182,6 +182,7 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			config,
 			workspacePath,
 			engine: contentEngine,
+			model,
 		};
 		statusBar.updateSourceCounts(contentEngine.getCounts());
 

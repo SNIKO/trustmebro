@@ -1,7 +1,16 @@
+export type ImageInfo = {
+	path: string;
+	url?: string;
+	mimeType?: string;
+	width?: number;
+	height?: number;
+};
+
 export type TelegramMessage = {
 	id: number;
 	date: number;
 	message?: string;
+	images?: ImageInfo[];
 };
 
 export type MessageGroup = {
