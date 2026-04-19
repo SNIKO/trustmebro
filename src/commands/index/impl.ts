@@ -140,6 +140,22 @@ async function runSource(
 	return { sourceId: source.sourceId, errors };
 }
 
+async function checkAuthentication(
+	sources: Source[],
+	workspacePath: string,
+): Promise<void> {
+	for (const source of sources) {
+		if (source.authenticate) {
+			const isAuthenticated = await source.authenticate(workspacePath);
+			if (!isAuthenticated) {
+				throw new Error(
+					`Authentication failed for source '${source.sourceId}'. Please configure credentials and try again.`,
+				);
+			}
+		}
+	}
+}
+
 export async function index(flags: IndexCommandFlags): Promise<void> {
 	statusBar.start();
 	try {
@@ -179,10 +195,10 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			),
 		);
 
-		// Start background processing of documents
+		await checkAuthentication(sourcesToProcess.map((s) => s.source), workspacePath);
+
 		await contentEngine.start();
 
-		// Sources run concurrently; publishers are sequential within each source.
 		const results = await Promise.all(
 			sourcesToProcess.map(({ source, publisherIds }) =>
 				runSource(source, publisherIds, context),
