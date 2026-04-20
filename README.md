@@ -10,7 +10,7 @@
 
 Fetch content from YouTube, Reddit, and more — process it with LLMs — and let your AI agent search, analyze, and synthesize insights across all of it.
 
-**Supported platforms:** YouTube, Reddit · **Coming soon:** Telegram, Twitter
+**Supported platforms:** YouTube, Reddit, Telegram · **Coming soon:** Twitter
 
 </div>
 
@@ -49,7 +49,7 @@ npx @nikosv/trustmebro index
 bunx @nikosv/trustmebro index
 ```
 
-> **Prerequisite:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) is required for YouTube fetching.
+> **Prerequisites:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) is required for YouTube fetching. Telegram requires API credentials from [my.telegram.org](https://my.telegram.org).
 
 ### 2. Create a Workspace
 
@@ -90,11 +90,29 @@ Edit your `config.yaml` to specify:
 - **`topic`** — High-level description for LLM context
 - **`sources.youtube.publishers`** — YouTube channel handles (with `@` prefix)
 - **`sources.reddit.publishers`** — Subreddit names to track
+- **`sources.telegram.publishers`** — Telegram channel usernames (with or without `@`)
 - **`tags`** — Structured metadata to extract (tickers, sentiment, sectors, narratives, etc.)
 
 See [config.template.yaml](config.template.yaml) for detailed documentation on all options.
 
-### 5. Run Indexing
+### 5. Authenticate (Telegram only)
+
+Telegram requires a one-time interactive login using your Telegram account. Set your credentials as environment variables first:
+
+```bash
+export TELEGRAM_API_ID="12345"        # from my.telegram.org
+export TELEGRAM_API_HASH="abc123..."  # from my.telegram.org
+```
+
+Then run:
+
+```bash
+trustmebro auth --source telegram
+```
+
+This saves a session to `.trustmebro/telegram-session.txt`. You only need to do this once.
+
+### 6. Run Indexing
 
 ```bash
 cd ~/stocks
@@ -104,6 +122,8 @@ trustmebro index
 
 # Index a specific source
 trustmebro index --source youtube
+trustmebro index --source reddit
+trustmebro index --source telegram
 
 # Index a specific publisher
 trustmebro index --source youtube --publisher @JosephCarlsonShow
@@ -138,6 +158,10 @@ After indexing, your workspace looks like this:
           investing/
             2025-12/
               2025-12-20-best-etf-for-long-term-growth.md
+        telegram/
+          trend_gen/
+            2025-12/
+              2025-12-18-market-update.md
       processed/             # LLM-enriched, search-optimized content
         youtube/
           everythingmoney/
@@ -147,6 +171,10 @@ After indexing, your workspace looks like this:
           investing/
             2025-12/
               2025-12-20-best-etf-for-long-term-growth.md
+        telegram/
+          trend_gen/
+            2025-12/
+              2025-12-18-market-update.md
   config.yaml
 ```
 
@@ -177,7 +205,7 @@ Once set up, ask Claude Code (or any other agent):
 
 > *"Find all strong buy recommendations from December 2025"*
 
-> *"Compare sentiment on Tesla across YouTube vs Reddit"*
+> *"Compare sentiment on Tesla across YouTube vs Reddit vs Telegram"*
 
 > *"What narratives are trending in tech stocks this quarter?"*
 
@@ -191,14 +219,14 @@ Your agent will use ripgrep to search the indexed content and synthesize insight
 
 ### Stock Market Research
 
-- Create a workspace `~/stocks` with your favorite YouTube finance channels and investing subreddits
+- Create a workspace `~/stocks` with your favorite YouTube finance channels, investing subreddits, and Telegram channels
 - Connect finance-related MCP servers (Yahoo Finance, Seeking Alpha, etc.)
 - Store your portfolio holdings and watchlists alongside the indexed content
 - Ask your agent to find sentiment, recommendations, narratives, and insights
 
 ### Health & Wellness
 
-- Create a workspace `~/health` with YouTube health channels and medical subreddits
+- Create a workspace `~/health` with YouTube health channels, medical subreddits, and Telegram health communities
 - Connect medical MCP servers (PubMed, Medscape, etc.)
 - Store your medical history and test results in the workspace
 - Ask your agent about trends, new research, supplements, and recommendations specific to your goals
