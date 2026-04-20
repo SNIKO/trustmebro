@@ -113,7 +113,7 @@ async function authenticateTelegram(workspacePath: string): Promise<boolean> {
 
 		log.info("✅ Logged in to Telegram!", { source: "telegram" });
 
-		const session = client.session.save();
+		const session = stringSession.save();
 		await saveSession(workspacePath, session);
 
 		log.info("Session saved successfully", { source: "telegram" });

@@ -39,7 +39,7 @@
 		"dev": "bun run src/app.ts",
 		"demo": "bun run src/demo-playground.ts",
 		"build": "tsup src/app.ts --format esm --clean",
-		"lint": "bunx --bun biome lint .",
+		"lint": "bunx --bun biome lint . && tsc --noEmit",
 		"fix": "bunx --bun biome format . --write",
 		"check": "bunx --bun biome check .",
 		"typecheck": "tsc --noEmit",
