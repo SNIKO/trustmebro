@@ -1,9 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Config, ConfigTag, ConfigTags } from "../../../config.js";
-import { createRedditSkill, REDDIT_SKILL_NAME } from "./reddit-skill.js";
+import { createSocialSkill, SOCIAL_SKILL_NAME } from "./social-skill.js";
 import type { AgentType } from "./types.js";
-import { createYoutubeSkill, YOUTUBE_SKILL_NAME } from "./youtube-skill.js";
 
 /**
  * Select example fields from the tag schema, prioritizing fields with enum values.
@@ -83,20 +82,13 @@ export async function generateSkills(
 		exampleFields: buildExampleFields(config.tags, 4),
 		tagReferenceList: buildTagReferenceList(config.tags),
 	};
-	const youtubeSkillContent = await createYoutubeSkill(data);
-	const redditSkillContent = await createRedditSkill(data);
+	const socialSkillContent = await createSocialSkill(data);
 
-	const youtubeSkillPath = await saveSkill(
+	const socialSkillPath = await saveSkill(
 		agent,
-		YOUTUBE_SKILL_NAME,
-		youtubeSkillContent,
+		SOCIAL_SKILL_NAME,
+		socialSkillContent,
 	);
 
-	const redditSkillPath = await saveSkill(
-		agent,
-		REDDIT_SKILL_NAME,
-		redditSkillContent,
-	);
-
-	return [youtubeSkillPath, redditSkillPath];
+	return [socialSkillPath];
 }
