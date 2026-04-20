@@ -191,6 +191,10 @@ export function logIndexingItemCompleted(
 	} else {
 		totalFailed++;
 		const params: LogParams = getTotalStats();
-		log.error(`Failed '${truncateTitle(event.label)}' (${event.error})`, ctx, params);
+		log.error(
+			`Failed '${truncateTitle(event.label)}' (${event.error})`,
+			ctx,
+			params,
+		);
 	}
 }

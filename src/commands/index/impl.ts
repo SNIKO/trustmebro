@@ -186,7 +186,10 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 
 		const sourcesToProcess = filterSourcesToProcess(sources, config, flags);
 
-		await checkAuthentication(sourcesToProcess.map((s) => s.source), workspacePath);
+		await checkAuthentication(
+			sourcesToProcess.map((s) => s.source),
+			workspacePath,
+		);
 
 		await contentEngine.start();
 

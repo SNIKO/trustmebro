@@ -1,10 +1,13 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { TelegramClient } from "telegram";
+import { Logger, LogLevel } from "telegram/extensions/Logger.js";
 import { StringSession } from "telegram/sessions/index.js";
 import { Api } from "telegram/tl/index.js";
-import type { TelegramMessage, ImageInfo } from "./types.js";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as os from "node:os";
+import type { ImageInfo, TelegramMessage } from "./types.js";
+
+let unhandledRejectionHandlerInstalled = false;
 
 async function downloadImage(
 	client: TelegramClient,
@@ -24,9 +27,7 @@ async function downloadImage(
 			photo as unknown as Api.TypeMessageMedia,
 		);
 		if (!Buffer.isBuffer(buffer)) {
-			console.warn(
-				`Downloaded media for message ${messageId} is not a buffer`,
-			);
+			console.warn(`Downloaded media for message ${messageId} is not a buffer`);
 			return null;
 		}
 		if (buffer.length === 0) {
@@ -104,15 +105,31 @@ export async function createClient(
 		new StringSession(creds.sessionString),
 		creds.apiId,
 		creds.apiHash,
-		{ connectionRetries: 5 },
+		{
+			connectionRetries: 5,
+			baseLogger: new Logger(LogLevel.NONE),
+		},
 	);
+
 	await client.connect();
 
-	// Suppress TIMEOUT errors from the update loop
+	// The library's timeout() helper can produce unhandled rejections when the
+	// ping resolves just as the sleep timer fires (a race condition in gramjs).
+	// Install a global handler once to suppress these harmless errors.
+	if (!unhandledRejectionHandlerInstalled) {
+		unhandledRejectionHandlerInstalled = true;
+		process.on("unhandledRejection", (reason) => {
+			if (reason instanceof Error && reason.message === "TIMEOUT") {
+				return; // Suppress expected TIMEOUT rejections from gramjs ping loop
+			}
+			// Re-throw anything else to preserve proper error handling
+			throw reason;
+		});
+	}
+
+	// Suppress TIMEOUT errors from the error handler path too
 	client.onError = async (error) => {
-		if (error.message === "TIMEOUT") {
-			return;
-		}
+		if (error.message === "TIMEOUT") return;
 		throw error;
 	};
 
@@ -153,13 +170,7 @@ export async function fetchMessages(
 				const photo = photos[i];
 				if (!photo) continue;
 
-				const imageInfo = await downloadImage(
-					client,
-					msg,
-					photo,
-					msg.id,
-					i,
-				);
+				const imageInfo = await downloadImage(client, msg, photo, msg.id, i);
 				if (imageInfo) {
 					images.push(imageInfo);
 				}
