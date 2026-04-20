@@ -1,6 +1,5 @@
 import { buildCommand } from "@stricli/core";
 import { sourceIdSchema } from "../../config.js";
-import { buildSources } from "../../sources/index.js";
 
 export interface AuthCommandFlags {
 	workspacePath?: string;

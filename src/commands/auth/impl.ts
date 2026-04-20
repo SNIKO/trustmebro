@@ -1,6 +1,5 @@
-import path from "node:path";
-import { log } from "../../ui/logger.js";
 import { buildSources } from "../../sources/index.js";
+import { log } from "../../ui/logger.js";
 import type { AuthCommandFlags } from "./command.js";
 
 export async function auth(flags: AuthCommandFlags): Promise<void> {
