@@ -43,6 +43,12 @@ const publisherConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
 });
 
+const telegramConfigSchema = z.object({
+	publishers: z.array(z.string()).default([]),
+});
+
+export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
+
 const redditConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
 	/** Minimum number of comments required for a post to be indexed */
@@ -82,7 +88,7 @@ const configSchema = z.object({
 	tags: tagsSchema,
 	sources: z.object({
 		youtube: publisherConfigSchema.optional(),
-		telegram: publisherConfigSchema.optional(),
+		telegram: telegramConfigSchema.optional(),
 		twitter: publisherConfigSchema.optional(),
 		reddit: redditConfigSchema.optional(),
 	}),

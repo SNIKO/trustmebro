@@ -12,7 +12,8 @@ startDate: 2025-12-01
 # ============================================================================
 # High-level description of what you're tracking. Used by the LLM
 # to understand context when extracting tags and summarizing content.
-topic: "Stock market, investing, and financial markets (equities, ETFs, portfolio management, macro economics)"
+topic: "Stock market, investing, and financial markets (equities, ETFs,
+  portfolio management, macro economics)"
 
 # ============================================================================
 # INDEXING CONFIGURATION
@@ -71,18 +72,22 @@ sources:
       - "@AswathDamodaranonValuation"
       # Add more channels...
 
-    # How often to check for new videos (in minutes)
+      # How often to check for new videos (in minutes)
     pollIntervalMinutes: 60
 
-  # Telegram channels (coming soon)
+  # Telegram channels
   telegram:
+    # Credentials are read from environment variables (not stored in config):
+    #   TELEGRAM_API_ID   — API ID from my.telegram.org
+    #   TELEGRAM_API_HASH — API hash from my.telegram.org
+    # Session is stored in .trustmebro/telegram-session.txt (auto-saved after first auth).
+    # Run scripts/test.ts once to authenticate and generate the session file.
     publishers: []
-    # Example:
-    # - "cryptoinsights"
-    # - "stockmarket_signals"
-    pollIntervalMinutes: 60
+    # Example (channel username with or without @):
+    # - "trend_gen"
+    # - "@cryptoinsights"
 
-  # Twitter accounts (coming soon)
+    # Twitter accounts (coming soon)
   twitter:
     publishers: []
     # Example:
@@ -132,7 +137,8 @@ tags:
   # Specific industry/sub-sector
   industry:
     type: string[]
-    description: "Specific industry/sub-sector in snake_case (e.g. semiconductors, biotech, banking, ev_manufacturing)."
+    description: "Specific industry/sub-sector in snake_case (e.g. semiconductors,
+      biotech, banking, ev_manufacturing)."
 
   # Market cap category
   market_cap:
@@ -180,7 +186,8 @@ tags:
   # Investment narratives
   narrative:
     type: string[]
-    description: "Investment or market narratives in snake_case (e.g. ai_boom, ev_transition, rate_cuts)."
+    description: "Investment or market narratives in snake_case (e.g. ai_boom,
+      ev_transition, rate_cuts)."
 
   # Bullish or bearish sentiment
   sentiment:
@@ -200,6 +207,7 @@ tags:
       - hold
       - sell
       - strong_sell
+
 # ============================================================================
 # TAG TYPE REFERENCE
 # ============================================================================

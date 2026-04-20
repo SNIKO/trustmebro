@@ -1,5 +1,6 @@
 import { log } from "../ui/logger.js";
 import { createRedditSource } from "./reddit/index.js";
+import { createTelegramSource } from "./telegram/index.js";
 import type { Source } from "./types.js";
 import { createYoutubeSource } from "./youtube/index.js";
 
@@ -10,8 +11,9 @@ export function buildSources(): Source[] {
 	}
 
 	const reddit = createRedditSource();
+	const telegram = createTelegramSource();
 
-	return [youtube, reddit].filter(
+	return [youtube, reddit, telegram].filter(
 		(source): source is Source => source !== null,
 	);
 }

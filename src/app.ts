@@ -1,4 +1,5 @@
 import { buildApplication, buildRouteMap, run } from "@stricli/core";
+import { authCommand } from "./commands/auth/command.js";
 import { skillsCommand } from "./commands/generate/skills/command.js";
 import { indexCommand } from "./commands/index/command.js";
 import { buildContext } from "./context.js";
@@ -14,6 +15,7 @@ export const generateRoutes = buildRouteMap({
 
 const routes = buildRouteMap({
 	routes: {
+		auth: authCommand,
 		index: indexCommand,
 		generate: generateRoutes,
 	},
