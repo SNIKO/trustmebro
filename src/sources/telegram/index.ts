@@ -14,6 +14,7 @@ import type { Source, SourceContext } from "../types.js";
 import {
 	createClient,
 	fetchMessages,
+	getChannelSubscriberCount,
 	type TelegramCredentials,
 } from "./fetch.js";
 import { groupMessages, processMessageGroup } from "./process.js";
@@ -152,6 +153,11 @@ export function createTelegramSource(): Source {
 				const updatedSession = (client.session as StringSession).save();
 				await saveSession(context.workspacePath, updatedSession);
 
+				const subscriberCount = await getChannelSubscriberCount(
+					client,
+					publisherId,
+				);
+
 				const messages = await fetchMessages(
 					client,
 					publisherId,
@@ -170,6 +176,7 @@ export function createTelegramSource(): Source {
 						channelId: publisherId,
 						group,
 						state,
+						subscriberCount,
 					});
 
 					switch (result.status) {

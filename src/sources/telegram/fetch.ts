@@ -20,12 +20,21 @@ async function downloadImage(
 		const filename = `telegram-${messageId}-${imageIndex}.jpg`;
 		const filePath = path.join(tempDir, filename);
 
-		const media = new Api.MessageMediaPhoto({
-			photo: photo,
-		});
-
-		const buffer = await client.downloadMedia(media);
-		if (!Buffer.isBuffer(buffer)) return null;
+		const buffer = await client.downloadMedia(
+			photo as unknown as Api.TypeMessageMedia,
+		);
+		if (!Buffer.isBuffer(buffer)) {
+			console.warn(
+				`Downloaded media for message ${messageId} is not a buffer`,
+			);
+			return null;
+		}
+		if (buffer.length === 0) {
+			console.warn(
+				`Downloaded image for message ${messageId} is empty (0 bytes)`,
+			);
+			return null;
+		}
 
 		await fs.promises.writeFile(filePath, buffer);
 
@@ -33,7 +42,11 @@ async function downloadImage(
 			path: filePath,
 			mimeType: "image/jpeg",
 		};
-	} catch {
+	} catch (error) {
+		console.warn(
+			`Failed to download image for message ${messageId}:`,
+			error instanceof Error ? error.message : String(error),
+		);
 		return null;
 	}
 }
@@ -59,6 +72,16 @@ function extractPhotos(message: Api.Message): Api.Photo[] {
 			media.webpage.photo instanceof Api.Photo
 		) {
 			photos.push(media.webpage.photo);
+		}
+	}
+
+	if (message.media instanceof Api.MessageMediaDocument) {
+		const media = message.media as Api.MessageMediaDocument;
+		if (
+			media.document instanceof Api.Document &&
+			media.document.mimeType?.startsWith("image/")
+		) {
+			// Image documents are not currently supported
 		}
 	}
 
@@ -170,4 +193,33 @@ export function buildMessageUrl(
 		? channelUsername.slice(1)
 		: channelUsername;
 	return `https://t.me/${handle}/${messageId}`;
+}
+
+/**
+ * Fetch the subscriber count for a Telegram channel.
+ * Returns null if the channel is not found or the count is not available.
+ */
+export async function getChannelSubscriberCount(
+	client: TelegramClient,
+	channelId: string,
+): Promise<number | null> {
+	try {
+		const fullChannel = await client.invoke(
+			new Api.channels.GetFullChannel({
+				channel: channelId,
+			}),
+		);
+
+		if (fullChannel.fullChat instanceof Api.ChannelFull) {
+			return fullChannel.fullChat.participantsCount ?? null;
+		}
+
+		return null;
+	} catch (error) {
+		console.warn(
+			`Failed to get subscriber count for channel ${channelId}:`,
+			error instanceof Error ? error.message : String(error),
+		);
+		return null;
+	}
 }

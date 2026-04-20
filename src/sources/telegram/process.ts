@@ -34,31 +34,47 @@ async function processImagesWithLLM(args: {
 	try {
 		const imageData = await Promise.all(
 			images.map(async (img) => {
-				const buffer = await fs.readFile(img.path);
-				return `data:${img.mimeType ?? "image/jpeg"};base64,${buffer.toString("base64")}`;
+				try {
+					const buffer = await fs.readFile(img.path);
+					if (buffer.length === 0) {
+						console.warn(`[Telegram] Image file is empty: ${img.path}`);
+						return null;
+					}
+					const base64 = buffer.toString("base64");
+					return `<img src="data:${img.mimeType ?? "image/jpeg"};base64,${base64}" />`;
+				} catch (error) {
+					console.warn(
+						`[Telegram] Failed to read image file ${img.path}:`,
+						error instanceof Error ? error.message : String(error),
+					);
+					return null;
+				}
 			}),
 		);
 
+		const validImageData = imageData.filter(
+			(data): data is string => data !== null,
+		);
+
+		if (validImageData.length === 0) {
+			console.warn("[Telegram] No valid image data to process");
+			return "";
+		}
+
 		const prompt = IMAGE_ANALYSIS_TEMPLATE.replace("{POST_TEXT}", postText);
+		const contentWithImages = `${prompt}\n\n${imageData.join("\n")}`;
 
 		const { text } = await generateText({
 			model: context.model,
-			messages: [
-				{
-					role: "user",
-					content: [
-						{ type: "text", text: prompt },
-						...imageData.map((data) => ({
-							type: "image" as const,
-							image: data,
-						})),
-					],
-				},
-			],
+			prompt: contentWithImages,
 		});
 
 		return text.trim();
-	} catch {
+	} catch (error) {
+		console.warn(
+			"[Telegram] Failed to process images with LLM:",
+			error instanceof Error ? error.message : String(error),
+		);
 		return "";
 	}
 }
@@ -106,14 +122,18 @@ export async function processMessageGroup(args: {
 	channelId: string;
 	group: MessageGroup;
 	state: TelegramState;
+	subscriberCount?: number | null;
 }): Promise<GroupRunResult> {
-	const { context, channelId, group, state } = args;
+	const { context, channelId, group, state, subscriberCount } = args;
 	const first = group.messages[0] as TelegramMessage;
 	const groupId = first.id;
 
 	try {
 		const publishedAt = new Date(first.date * 1000);
 		if (publishedAt < context.config.startDate) {
+			console.log(
+				`[Telegram] Group ${groupId} skipped: before start date (${publishedAt.toISOString()})`,
+			);
 			return { groupId, status: "skipped", reason: "before-start-date" };
 		}
 
@@ -122,11 +142,11 @@ export async function processMessageGroup(args: {
 			.filter((t): t is string => !!t);
 
 		const combinedText = texts.join("\n\n");
+		const allImages = group.messages.flatMap((m) => m.images ?? []);
+
 		if (combinedText.length < MIN_GROUP_LENGTH) {
 			return { groupId, status: "skipped", reason: "too-short" };
 		}
-
-		const allImages = group.messages.flatMap((m) => m.images ?? []);
 
 		let imageAnalysis = "";
 		if (allImages.length > 0) {
@@ -166,6 +186,9 @@ export async function processMessageGroup(args: {
 				messageId: groupId,
 				hasImages: allImages.length > 0,
 				imageCount: allImages.length,
+				...(subscriberCount !== null && subscriberCount !== undefined
+					? { subscriberCount }
+					: {}),
 			},
 		});
 
