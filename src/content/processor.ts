@@ -1,8 +1,11 @@
 import { generateText, type LanguageModel } from "ai";
 import YAML from "yaml";
+import { createLogger, type Logger } from "../utils/logger.js";
 import type { Storage } from "./storage.js";
 import { getSource } from "./storage.js";
-import type { ContentEngineHooks, DocumentRef, Tags } from "./types.js";
+import type { DocumentRef, Tags } from "./types.js";
+
+const log = createLogger("processing");
 
 const PROCESSING_TEMPLATE = `# INSTRUCTIONS
 Clean, chunk, and tag the raw content for **grep-based search** in the domain: {DOMAIN}.
@@ -89,6 +92,11 @@ function renderDocument(tags: Tags, content: string): string {
 	return `---\n${yaml}\n---\n\n${content.trim()}`;
 }
 
+function normalizePublisher(publisher: string): string {
+	if (publisher.startsWith("@")) return publisher;
+	return `@${publisher}`;
+}
+
 function resolveMetadata(
 	ref: DocumentRef,
 	tags?: Tags,
@@ -100,10 +108,11 @@ function resolveMetadata(
 	const str = (v: unknown) =>
 		typeof v === "string" && v.trim() ? v.trim() : undefined;
 
+	const publisher = str(tags?.publisher) ?? publisherFromPath;
 	return {
 		source: str(tags?.source) ?? sourceFromPath,
 		label: str(tags?.title) ?? filename.replace(/\.md$/, ""),
-		publisher: str(tags?.publisher) ?? publisherFromPath,
+		publisher: publisher ? normalizePublisher(publisher) : undefined,
 	};
 }
 
@@ -121,13 +130,15 @@ export function startWorkers(args: {
 	tagSchema: string;
 	customPrompts?: Record<string, string>;
 	concurrency?: number;
-	hooks?: ContentEngineHooks;
 }): WorkerHandle {
-	const { storage, model, domain, tagSchema, customPrompts, hooks } = args;
+	const { storage, model, domain, tagSchema, customPrompts } = args;
 	const concurrency = Math.max(1, args.concurrency ?? 1);
 	const queue = [...args.initialQueue];
 	let stopping = false;
 	let activeWorkers = 0;
+	let totalProcessed = 0;
+	let totalErrors = 0;
+	const startTime = Date.now();
 	const refWaiters: Array<(ref: DocumentRef | undefined) => void> = [];
 	const idleWaiters: Array<() => void> = [];
 
@@ -147,13 +158,7 @@ export function startWorkers(args: {
 		});
 	}
 
-	function safe(fn: (() => void) | undefined): void {
-		try {
-			fn?.();
-		} catch (_) {}
-	}
-
-	async function processOne(ref: DocumentRef): Promise<void> {
+	async function processOne(ref: DocumentRef, logger: Logger): Promise<void> {
 		let raw: { tags: Tags; content: string } | undefined;
 		let readError: unknown;
 
@@ -166,25 +171,12 @@ export function startWorkers(args: {
 		const meta = resolveMetadata(ref, raw?.tags);
 		const start = Date.now();
 
-		safe(() =>
-			hooks?.onDocumentProcessingStarted?.({
-				...meta,
-				documentsCount: storage.getCounts(),
-			}),
-		);
-
 		if (readError || !raw) {
 			const message =
 				readError instanceof Error
 					? readError.message
 					: String(readError ?? "Failed to read raw document");
-			safe(() =>
-				hooks?.onDocumentProcessingCompleted?.({
-					success: false,
-					...meta,
-					error: message,
-				}),
-			);
+			logger.error(`Failed to read document: ${message}`);
 			return;
 		}
 
@@ -197,41 +189,47 @@ export function startWorkers(args: {
 				customPrompts?.[source],
 			);
 
-			const { text, usage } = await generateText({ model, prompt });
-			if (!text) throw new Error("Empty LLM response");
+			logger.info(
+				`Processing '${meta.label}' ${meta.publisher ?? "unknown"} (${meta.source})`,
+			);
+
+			const { text } = await generateText({ model, prompt });
+			const elapsed = (Date.now() - start) / 1000;
+
+			if (!text) {
+				logger.error(
+					`No text generated for ${meta.label} by LLM in ${elapsed.toFixed(2)}s - skipping document.`,
+				);
+				totalErrors++;
+				return;
+			}
+
+			logger.info(
+				`Processed '${meta.label}' (${elapsed.toFixed(0)}s, ${queue.length} remaining)`,
+			);
 
 			await storage.saveProcessed(ref, renderDocument(raw.tags, text));
-
-			safe(() =>
-				hooks?.onDocumentProcessingCompleted?.({
-					success: true,
-					...meta,
-					documentsCount: storage.getCounts(),
-					elapsedMs: Date.now() - start,
-					inputTokens: usage?.inputTokens ?? 0,
-					outputTokens: usage?.outputTokens ?? 0,
-					totalTokens: usage?.totalTokens ?? 0,
-				}),
-			);
+			totalProcessed++;
 		} catch (err) {
-			safe(() =>
-				hooks?.onDocumentProcessingCompleted?.({
-					success: false,
-					...meta,
-					error: err instanceof Error ? err.message : String(err),
-				}),
+			logger.error(
+				`Failed to process document '${meta.label}': ${err instanceof Error ? err.message : String(err)}`,
 			);
+			totalErrors++;
 		}
 	}
 
-	async function workerLoop(): Promise<void> {
+	async function workerLoop(index: number): Promise<void> {
+		const workerLogger = createLogger(`worker-${index + 1}`);
+
 		while (true) {
 			const ref = await takeNextRef();
-			if (!ref) return;
+			if (!ref) {
+				return;
+			}
 
 			activeWorkers++;
 
-			await processOne(ref);
+			await processOne(ref, workerLogger);
 
 			activeWorkers--;
 			resolveIdleWaiters();
@@ -239,7 +237,10 @@ export function startWorkers(args: {
 	}
 
 	// Start worker loops
-	const workers = Array.from({ length: concurrency }, () => workerLoop());
+	log.info(`Starting ${concurrency} worker(s) for content enrichment...`);
+	const workers = Array.from({ length: concurrency }, (_, index) =>
+		workerLoop(index),
+	);
 
 	return {
 		enqueue(ref) {
@@ -250,6 +251,7 @@ export function startWorkers(args: {
 				return;
 			}
 			queue.push(ref);
+			log.debug(`Enqueued document: '${ref}', queue length: ${queue.length}`);
 		},
 
 		async waitForIdle() {
@@ -265,6 +267,10 @@ export function startWorkers(args: {
 				refWaiters.shift()?.(undefined);
 			}
 			await Promise.all(workers);
+			const totalTime = ((Date.now() - startTime) / 1000).toFixed(0);
+			log.info(
+				`Completed ${totalProcessed} documents, ${totalErrors} errors (${totalTime}s)`,
+			);
 		},
 	};
 }

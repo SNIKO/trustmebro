@@ -10,11 +10,9 @@ import {
 import { createContentEngine } from "../../content/index.js";
 import { buildSources } from "../../sources/index.js";
 import type { Source, SourceContext } from "../../sources/types.js";
-import {
-	log,
-	logIndexingItemCompleted,
-	logIndexingItemStarted,
-} from "../../ui/logger.js";
+import { createLogger } from "../../utils/logger.js";
+
+const log = createLogger("");
 
 export interface IndexCommandFlags {
 	workspacePath?: string;
@@ -93,7 +91,6 @@ function filterSourcesToProcess(
 
 		const sourceConfig = config.sources[source.sourceId];
 		if (!sourceConfig) {
-			log.warn("Source not configured, skipping", { source: source.sourceId });
 			continue;
 		}
 
@@ -102,10 +99,6 @@ function filterSourcesToProcess(
 			: sourceConfig.publishers;
 		if (publisherIds.length > 0) {
 			result.push({ source, publisherIds });
-		} else {
-			log.warn("No publishers configured, skipping", {
-				source: source.sourceId,
-			});
 		}
 	}
 	return result;
@@ -124,18 +117,27 @@ async function runSource(
 		publisherId: string;
 		error: unknown;
 	}> = [];
-	for (const publisherId of publisherIds) {
+
+	const sourceLogger = createLogger(source.sourceId);
+
+	for (let i = 0; i < publisherIds.length; i++) {
+		const publisherId = publisherIds[i];
+		if (!publisherId) continue;
+
 		try {
+			sourceLogger.info(`Fetched ${i + 1}/${publisherIds.length} publishers`);
 			await source.runOnce(context, publisherId);
+			sourceLogger.info(`Fetched ${i + 1}/${publisherIds.length} publishers`);
 		} catch (error) {
 			errors.push({ sourceId: source.sourceId, publisherId, error });
-			log.error(
-				`Failed processing publisher '${publisherId}'`,
-				{ source: source.sourceId, publisher: publisherId },
-				{ error: error instanceof Error ? error.message : String(error) },
+			sourceLogger.error(
+				`Error processing '${publisherId}': ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
 	}
+
+	sourceLogger.info(`Fetching completed`);
+
 	return { sourceId: source.sourceId, errors };
 }
 
@@ -170,10 +172,6 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			model,
 			workers: config.indexing.workers,
 			customPrompts: buildCustomPrompts(sources, config.topic, tagSchema),
-			hooks: {
-				onDocumentProcessingStarted: logIndexingItemStarted,
-				onDocumentProcessingCompleted: logIndexingItemCompleted,
-			},
 		});
 
 		const context: SourceContext = {
@@ -182,9 +180,15 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			engine: contentEngine,
 			model,
 		};
-		log.updateSourceCounts(contentEngine.getCounts());
 
 		const sourcesToProcess = filterSourcesToProcess(sources, config, flags);
+
+		if (sourcesToProcess.length === 0) {
+			log.warn("No sources configured.");
+			return;
+		}
+
+		log.info(`Found ${sourcesToProcess.length} source(s) configured.`);
 
 		await checkAuthentication(
 			sourcesToProcess.map((s) => s.source),
@@ -202,14 +206,14 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 		await contentEngine.waitForIdle();
 		await contentEngine.stop();
 
+		log.info("Fetching completed for all sources.");
+
 		const failed = results.flatMap((r) => r.errors);
 		if (failed.length > 0) {
 			throw new Error(
 				`Indexing completed with ${failed.length} failed publisher run(s) across ${results.length} source(s)`,
 			);
 		}
-
-		log.info("Indexing run complete");
 	} finally {
 	}
 }

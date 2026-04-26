@@ -1,20 +1,13 @@
-import {
-	type LogContext,
-	log,
-	logFetchingItemsCompleted,
-	logFetchingItemsStarted,
-} from "../../ui/logger.js";
+import { createLogger } from "../../utils/logger.js";
 import type { Source, SourceContext } from "../types.js";
 import { hasYtDlp, listVideos } from "./fetch.js";
 import { processVideo } from "./process.js";
 import { YouTubeState } from "./state.js";
 
+const log = createLogger("youtube");
+
 export function createYoutubeSource(): Source | null {
 	if (!hasYtDlp()) {
-		log.error(
-			"yt-dlp is required for youtube source. Install it from https://github.com/yt-dlp/yt-dlp#installation",
-			{ source: "youtube" },
-		);
 		return null;
 	}
 
@@ -22,16 +15,13 @@ export function createYoutubeSource(): Source | null {
 		sourceId: "youtube",
 
 		async runOnce(context: SourceContext, publisherId: string): Promise<void> {
-			const ctx: LogContext = {
-				source: "youtube",
-				publisher: publisherId,
-			};
 			const state = new YouTubeState(context.workspacePath);
 			await state.load();
 
-			logFetchingItemsStarted("youtube", publisherId);
+			log.info(`Fetching ${publisherId} videos`);
+
+			const fetchStart = Date.now();
 			const videos = await listVideos(publisherId);
-			logFetchingItemsCompleted("youtube", publisherId);
 			const newVideos = videos.filter(
 				(v) =>
 					v.id &&
@@ -39,8 +29,17 @@ export function createYoutubeSource(): Source | null {
 					!state.isSkipped(publisherId, v.id),
 			);
 
-			for (const entry of newVideos) {
-				if (!entry.id) continue;
+			const fetchElapsed = ((Date.now() - fetchStart) / 1000).toFixed(0);
+			log.info(
+				`Fetched ${newVideos.length} videos for ${publisherId} (${fetchElapsed}s)`,
+			);
+
+			let processedCount = 0;
+			let errorCount = 0;
+
+			for (let i = 0; i < newVideos.length; i++) {
+				const entry = newVideos[i];
+				if (!entry?.id) continue;
 
 				const title = entry.title ?? entry.id;
 
@@ -51,26 +50,28 @@ export function createYoutubeSource(): Source | null {
 					state,
 				});
 
-				switch (result.status) {
-					case "indexed":
-						log.info(`Fetched '${result.title ?? title}'`, ctx);
-						break;
-					case "skipped":
-						log.info(`Skipped '${result.title ?? title}'`, ctx, {
-							reason: result.reason ?? "unknown",
-						});
-						if (result.reason === "before-start-date") {
-							return;
-						}
-						break;
-					case "error":
-						log.error(
-							`Failed '${result.title ?? title}' (${result.reason ?? "unknown error"})`,
-							ctx,
+				if (result.status === "indexed") {
+					processedCount++;
+					if (processedCount % 10 === 0 || i === newVideos.length - 1) {
+						log.info(
+							`Processed ${processedCount}/${newVideos.length} videos for ${publisherId}`,
 						);
-						break;
+					}
+				} else if (result.status === "error") {
+					errorCount++;
+					log.error(`Failed to index video "${title}": ${result.reason}`);
+				} else if (
+					result.status === "skipped" &&
+					result.reason === "before-start-date"
+				) {
+					log.info(`Reached start date (${processedCount} processed)`);
+					break;
 				}
 			}
+
+			log.info(
+				`Completed ${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`,
+			);
 		},
 	};
 }

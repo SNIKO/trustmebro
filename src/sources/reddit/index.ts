@@ -1,15 +1,12 @@
-import {
-	type LogContext,
-	log,
-	logFetchingItemsCompleted,
-	logFetchingItemsStarted,
-} from "../../ui/logger.js";
+import { createLogger } from "../../utils/logger.js";
 import type { Source, SourceContext } from "../types.js";
 import { listPostsBatched } from "./fetch.js";
 import { processPost } from "./process.js";
 import { getRedditProcessingPrompt } from "./process-prompt.js";
 import { RedditState } from "./state.js";
 import type { RedditPost } from "./types.js";
+
+const log = createLogger("reddit");
 
 /** Overlap window: re-check posts within this period for comment updates */
 const OVERLAP_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -20,33 +17,30 @@ export function createRedditSource(): Source {
 		getProcessingPrompt: getRedditProcessingPrompt,
 
 		async runOnce(context: SourceContext, publisherId: string): Promise<void> {
-			const ctx: LogContext = {
-				source: "reddit",
-				publisher: publisherId,
-			};
-
 			const state = new RedditState(context.workspacePath);
 			await state.load();
 
 			const redditConfig = context.config.sources.reddit;
 			const minCommentCount = redditConfig?.commentsCountThreshold ?? 0;
 
-			logFetchingItemsStarted("reddit", publisherId);
-
 			const isBackfillComplete = state.isBackfillComplete(publisherId);
 			const latestFetched = state.getLatestFetched(publisherId);
 
-			// Determine cutoff date:
-			// - Backfill complete: fetch from (latestFetched - overlap) to catch updated posts
-			// - Backfill not complete: fetch all posts till config start date
 			const cutoffDate =
 				isBackfillComplete && latestFetched !== null
 					? new Date(latestFetched - OVERLAP_MS)
 					: context.config.startDate;
 
+			log.info(
+				`Fetching ${publisherId} posts since ${cutoffDate.toISOString().split("T")[0]}`,
+			);
+
 			const postsToReindex: RedditPost[] = [];
 			let reachedEndForBackfill = false;
+			let processedCount = 0;
+			let errorCount = 0;
 
+			const fetchStart = Date.now();
 			for await (const batch of listPostsBatched(
 				publisherId,
 				cutoffDate,
@@ -62,7 +56,6 @@ export function createRedditSource(): Source {
 					const isIndexed = state.contains(publisherId, post.id);
 
 					if (!isIndexed) {
-						// New post: process immediately
 						const result = await processPost({
 							context,
 							subreddit: publisherId,
@@ -70,63 +63,67 @@ export function createRedditSource(): Source {
 							state,
 							minCommentCount,
 						});
-						logResult(ctx, result);
+
+						if (result.status === "indexed") {
+							processedCount++;
+							if (processedCount % 10 === 0) {
+								log.info(
+									`Processed ${processedCount} posts for ${publisherId}`,
+								);
+							}
+						} else if (result.status === "error") {
+							errorCount++;
+							log.error(
+								`Failed to index post "${post.title}": ${result.reason}`,
+							);
+						}
 					} else if (
 						state.shouldReindex(publisherId, post.id, post.num_comments)
 					) {
-						// Existing post with significant comment increase: queue for re-index
 						postsToReindex.push(post);
 					}
 				}
 			}
 
-			// Mark backfill complete if we fetched all the way to config start date
+			const fetchElapsed = ((Date.now() - fetchStart) / 1000).toFixed(0);
+			log.info(`Fetched ${processedCount} posts (${fetchElapsed}s)`);
+
 			if (
 				!isBackfillComplete &&
 				cutoffDate.getTime() === context.config.startDate.getTime() &&
 				reachedEndForBackfill
 			) {
 				await state.markBackfillComplete(publisherId);
+				log.info(`Backfill completed for subreddit ${publisherId}`);
 			}
 
-			logFetchingItemsCompleted("reddit", publisherId);
+			if (postsToReindex.length > 0) {
+				log.info(`Re-indexing ${postsToReindex.length} posts`);
 
-			// Process posts that need re-indexing
-			for (const post of postsToReindex) {
-				const result = await processPost({
-					context,
-					subreddit: publisherId,
-					post,
-					state,
-					minCommentCount,
-					isReindex: true,
-				});
-				logResult(ctx, result);
+				for (const post of postsToReindex) {
+					const result = await processPost({
+						context,
+						subreddit: publisherId,
+						post,
+						state,
+						minCommentCount,
+						isReindex: true,
+					});
+
+					if (result.status === "indexed") {
+						processedCount++;
+					} else if (result.status === "error") {
+						errorCount++;
+						log.error(
+							`Failed to re-index post "${post.title}": ${result.reason}`,
+						);
+					}
+				}
 			}
+
+			log.info(
+				`Completed ${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`,
+			);
 		},
 	};
-}
-
-function logResult(
-	ctx: LogContext,
-	result: { status: string; title?: string; reason?: string },
-): void {
-	const title = result.title ?? "<unknown>";
-
-	switch (result.status) {
-		case "indexed":
-			log.info(`Fetched '${title}'`, ctx);
-			break;
-		case "updated":
-			log.info(`Re-indexed '${title}'`, ctx);
-			break;
-		case "skipped":
-			log.info(`Skipped '${title}'`, ctx, {
-				reason: result.reason ?? "unknown",
-			});
-			break;
-		case "error":
-			log.error(`Failed '${title}' (${result.reason ?? "unknown error"})`, ctx);
-			break;
-	}
 }

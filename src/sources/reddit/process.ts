@@ -10,6 +10,9 @@ import type {
 	RedditPost,
 	RedditPostWithComments,
 } from "./types.js";
+import { createLogger } from "../../utils/logger.js";
+
+const log = createLogger("reddit");
 
 export async function processPost(args: {
 	context: SourceContext;
@@ -101,8 +104,6 @@ async function ingestPost(args: {
 	const { context, subreddit, postData, publishedAt } = args;
 	const { post, comments } = postData;
 
-	const postUrl = buildPostUrl(post);
-
 	// Build the document content: post body + comments
 	const contentParts: string[] = [];
 
@@ -147,9 +148,13 @@ async function ingestPost(args: {
 			commentCount: post.num_comments,
 			flair: post.link_flair_text ?? "",
 			isLinkPost: !post.is_self,
-			postUrl,
+			postUrl: buildPostUrl(post),
 		},
 	});
+
+	if (result.success) {
+		log.debug(`Indexed post: '${post.title}' from r/${subreddit}`);
+	}
 
 	return result.success;
 }

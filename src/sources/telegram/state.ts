@@ -1,24 +1,45 @@
-import { z } from "zod";
-import { BaseSourceState } from "../base-state.js";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import YAML from "yaml";
 
-const channelStateSchema = z.object({
-	/** Highest message ID that has been successfully indexed */
-	lastMessageId: z.number().default(0),
-});
+type State = Record<string, { lastMessageId: number }>;
 
-const stateSchema = z.record(z.string(), channelStateSchema).default({});
-
-type State = z.infer<typeof stateSchema>;
-
-export class TelegramState extends BaseSourceState<State> {
-	protected schema = stateSchema;
+export class TelegramState {
+	private readonly filePath: string;
+	private state: State = {};
 
 	constructor(workspacePath: string) {
-		super(workspacePath, "index-telegram.yaml");
+		this.filePath = path.join(
+			workspacePath,
+			".trustmebro",
+			"index-telegram.yaml",
+		);
 	}
 
-	protected getDefaultState(): State {
-		return {};
+	async load(): Promise<void> {
+		if (!existsSync(this.filePath)) {
+			this.state = {};
+			return;
+		}
+
+		try {
+			const raw = await readFile(this.filePath, "utf8");
+			this.state = YAML.parse(raw) ?? {};
+		} catch {
+			this.state = {};
+		}
+	}
+
+	async save(): Promise<void> {
+		const dir = path.dirname(this.filePath);
+		await mkdir(dir, { recursive: true });
+
+		const tempPath = `${this.filePath}.tmp`;
+		const yaml = YAML.stringify(this.state);
+
+		await writeFile(tempPath, yaml, "utf8");
+		await writeFile(this.filePath, yaml, "utf8");
 	}
 
 	getLastMessageId(channelId: string): number {
