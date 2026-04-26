@@ -1,5 +1,11 @@
 # @nikosv/trustmebro
 
+## 0.3.0
+
+### Minor Changes
+
+- 9454493: Add integration with Telegram
+
 ## 0.2.1
 
 ### Patch Changes
