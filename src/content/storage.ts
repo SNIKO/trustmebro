@@ -29,6 +29,11 @@ function sanitize(name: string, maxLen = 50): string {
 	return s;
 }
 
+function normalizePublisher(publisher: string): string {
+	if (publisher.startsWith("@")) return publisher;
+	return `@${publisher}`;
+}
+
 export function getSource(ref: DocumentRef): string {
 	return ref.split("/")[0] ?? "unknown";
 }
@@ -40,7 +45,7 @@ function generateRef(input: AddInput): DocumentRef {
 	const slug = sanitize(input.label) || sanitize(input.id ?? "") || "unknown";
 	const source = sanitize(input.source, 20) || "unknown";
 	const publisher = input.publisher
-		? sanitize(input.publisher) || "unknown"
+		? normalizePublisher(sanitize(input.publisher) || "unknown")
 		: undefined;
 	return path.posix.join(
 		source,
@@ -57,7 +62,9 @@ function buildRawContent(input: AddInput): string {
 		created_at: (input.creationDate ?? new Date()).toISOString(),
 		...input.tags,
 		source: input.source,
-		...(input.publisher ? { publisher: input.publisher } : {}),
+		...(input.publisher
+			? { publisher: normalizePublisher(input.publisher) }
+			: {}),
 	};
 	const yaml = YAML.stringify(header).trim();
 	return `---\n${yaml}\n---\n\n${input.content.trim()}`;

@@ -4,7 +4,6 @@ import { createStorage } from "./storage.js";
 import type {
 	AddInput,
 	AddResult,
-	ContentEngineHooks,
 	DocumentRef,
 	SourceCounts,
 } from "./types.js";
@@ -12,9 +11,6 @@ import type {
 export type {
 	AddInput,
 	AddResult,
-	ContentEngineHooks,
-	DocumentProcessingCompletedEvent as DocumentCompletedEvent,
-	DocumentProcessingStartedEvent as DocumentStartedEvent,
 	SourceCounts,
 } from "./types.js";
 
@@ -33,7 +29,6 @@ export type ContentEngineOptions = {
 	model: LanguageModel;
 	workers?: number;
 	customPrompts?: Record<string, string>;
-	hooks?: ContentEngineHooks;
 };
 
 export async function createContentEngine(
@@ -79,7 +74,6 @@ export async function createContentEngine(
 				tagSchema: options.tagSchema,
 				customPrompts: options.customPrompts,
 				concurrency: options.workers,
-				hooks: options.hooks,
 			});
 			initialQueue.length = 0;
 		},

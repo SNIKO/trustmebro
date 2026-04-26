@@ -13,7 +13,6 @@ import { generateSkills } from "./generate-skills.js";
 import type { AgentType } from "./types.js";
 
 async function generateSkillsCommand(): Promise<void> {
-	console.clear();
 	intro("greptor skills");
 
 	const s = spinner();

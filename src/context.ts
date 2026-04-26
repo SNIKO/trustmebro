@@ -1,8 +1,10 @@
 import type { CommandContext } from "@stricli/core";
+import { createLogger } from "./utils/logger.js";
 
-// Stricli only needs a process-like object; Node's `process` already matches.
-export type LocalContext = CommandContext;
+export interface LocalContext extends CommandContext {
+	createLogger: typeof createLogger;
+}
 
 export function buildContext(process: NodeJS.Process): LocalContext {
-	return { process };
+	return { process, createLogger };
 }

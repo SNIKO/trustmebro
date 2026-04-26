@@ -24,11 +24,7 @@ export abstract class BaseSourceState<T = unknown> {
 			const raw = await readFile(this.filePath, "utf8");
 			const parsed = YAML.parse(raw);
 			this.state = this.schema.parse(parsed);
-		} catch (error) {
-			console.warn(
-				`Failed to load state from ${this.filePath}, using defaults:`,
-				error,
-			);
+		} catch (_error) {
 			this.state = this.getDefaultState();
 		}
 	}

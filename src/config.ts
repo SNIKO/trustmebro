@@ -45,6 +45,13 @@ const publisherConfigSchema = z.object({
 
 const telegramConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
+	/** Minimum message length (characters) to index. Messages shorter than this with no images are ignored. */
+	minMessageLength: z.coerce
+		.number()
+		.int()
+		.nonnegative()
+		.optional()
+		.default(200),
 });
 
 export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
