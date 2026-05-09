@@ -21,27 +21,16 @@ const phoneNumber = "+61466115828"; // <-- including country code, e.g. +1 for U
 		password: async () =>
 			await input.text("Enter your 2FA password (if any): "),
 		phoneCode: async () => await input.text("Enter the code you received: "),
-		onError: (err) => console.log(err),
+		onError: (err) => {
+			if (err.message !== "TIMEOUT") throw err;
+		},
 	});
-
-	console.log("✅ Logged in!");
-
-	// 💾 Save session (IMPORTANT)
-	const session = client.session.save();
-	console.log("Your session string:");
-	console.log(session);
 
 	// 🔎 Fetch public channel
 	const channel = await client.getEntity("trend_gen"); // try any public channel username
 
 	// 📥 Fetch messages
-	const messages = await client.getMessages(channel, {
+	const _messages = await client.getMessages(channel, {
 		limit: 20,
 	});
-
-	console.log(`\nLast ${messages.length} messages:\n`);
-
-	for (const msg of messages) {
-		console.log(`[${msg.date}] ${msg.message}`);
-	}
 })();

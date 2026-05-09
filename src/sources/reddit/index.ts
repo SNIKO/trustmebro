@@ -20,7 +20,7 @@ export function createRedditSource(): Source {
 			const state = new RedditState(context.workspacePath);
 			await state.load();
 
-			const redditConfig = context.config.sources.reddit;
+			const redditConfig = context.domainConfig.sources.reddit;
 			const minCommentCount = redditConfig?.commentsCountThreshold ?? 0;
 
 			const isBackfillComplete = state.isBackfillComplete(publisherId);
@@ -44,7 +44,7 @@ export function createRedditSource(): Source {
 			for await (const batch of listPostsBatched(
 				publisherId,
 				cutoffDate,
-				context.config.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
+				context.domainConfig.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
 			)) {
 				if (batch.reachedEnd && !isBackfillComplete) {
 					reachedEndForBackfill = true;

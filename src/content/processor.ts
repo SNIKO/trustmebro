@@ -2,7 +2,7 @@ import { generateText, type LanguageModel } from "ai";
 import YAML from "yaml";
 import { createLogger, type Logger } from "../utils/logger.js";
 import type { Storage } from "./storage.js";
-import { getSource } from "./storage.js";
+import { getDomainFromRef, getSource } from "./storage.js";
 import type { DocumentRef, Tags } from "./types.js";
 
 const log = createLogger("processing");
@@ -65,6 +65,12 @@ field_5=value_5,value_6
 # RAW CONTENT:
 {CONTENT}`;
 
+export interface DomainEntry {
+	name: string;
+	domain: string;
+	tagSchema: string;
+}
+
 function buildPrompt(
 	rawContent: string,
 	domain: string,
@@ -98,8 +104,9 @@ function resolveMetadata(
 ): { source: string; publisher?: string; label: string } {
 	const parts = ref.split("/");
 	const filename = parts.at(-1) ?? "";
-	const sourceFromPath = parts[0] ?? "unknown";
-	const publisherFromPath = parts.length > 3 ? parts[1] : undefined;
+	// ref format: {domain}/{source}/{publisher}/{ym}/{slug}.md
+	const sourceFromPath = parts[1] ?? "unknown";
+	const publisherFromPath = parts.length > 4 ? parts[2] : undefined;
 	const str = (v: unknown) =>
 		typeof v === "string" && v.trim() ? v.trim() : undefined;
 
@@ -121,12 +128,12 @@ export function startWorkers(args: {
 	storage: Storage;
 	initialQueue: DocumentRef[];
 	model: LanguageModel;
-	domain: string;
-	tagSchema: string;
+	domains: DomainEntry[];
+	/** Custom prompts keyed by "{domainName}/{sourceId}" */
 	customPrompts?: Record<string, string>;
 	concurrency?: number;
 }): WorkerHandle {
-	const { storage, model, domain, tagSchema, customPrompts } = args;
+	const { storage, model, domains, customPrompts } = args;
 	const concurrency = Math.max(1, args.concurrency ?? 1);
 	const queue = [...args.initialQueue];
 	let stopping = false;
@@ -137,6 +144,8 @@ export function startWorkers(args: {
 	const startTime = Date.now();
 	const refWaiters: Array<(ref: DocumentRef | undefined) => void> = [];
 	const idleWaiters: Array<() => void> = [];
+
+	const domainMap = new Map(domains.map((d) => [d.name, d]));
 
 	const counts = storage.getCounts();
 	for (const source in counts) {
@@ -185,12 +194,21 @@ export function startWorkers(args: {
 		}
 
 		try {
+			const domainName = getDomainFromRef(ref);
+			const domainEntry = domainMap.get(domainName);
+			if (!domainEntry) {
+				logger.error(`Unknown domain '${domainName}' for ref ${ref} — skipping`);
+				totalErrors++;
+				return;
+			}
+
 			const source = getSource(ref);
+			const customPromptKey = `${domainName}/${source}`;
 			const prompt = buildPrompt(
 				raw.content,
-				domain,
-				tagSchema,
-				customPrompts?.[source],
+				domainEntry.domain,
+				domainEntry.tagSchema,
+				customPrompts?.[customPromptKey],
 			);
 
 			logger.info(

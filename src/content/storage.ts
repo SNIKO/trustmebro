@@ -45,8 +45,14 @@ function formatPublisherForYaml(source: string, publisher: string): string {
 	}
 }
 
-export function getSource(ref: DocumentRef): string {
+/** Returns the domain slug (first path segment) of a DocumentRef. */
+export function getDomainFromRef(ref: DocumentRef): string {
 	return ref.split("/")[0] ?? "unknown";
+}
+
+/** Returns the source platform (second path segment) of a DocumentRef. */
+export function getSource(ref: DocumentRef): string {
+	return ref.split("/")[1] ?? "unknown";
 }
 
 function generateRef(input: AddInput): DocumentRef {
@@ -54,11 +60,13 @@ function generateRef(input: AddInput): DocumentRef {
 	const iso = ts.toISOString().split("T")[0];
 	const ym = `${ts.getUTCFullYear()}-${String(ts.getUTCMonth() + 1).padStart(2, "0")}`;
 	const slug = sanitize(input.label) || sanitize(input.id ?? "") || "unknown";
+	const domain = sanitize(input.domain, 50) || "unknown";
 	const source = sanitize(input.source, 20) || "unknown";
 	const publisher = input.publisher
 		? normalizePublisherForPath(input.publisher)
 		: "unknown";
 	return path.posix.join(
+		domain,
 		source,
 		...(publisher ? [publisher] : []),
 		ym,

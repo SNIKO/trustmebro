@@ -43,7 +43,7 @@ async function generateSkillsCommand(): Promise<void> {
 			s.start("Loading configuration...");
 
 			config = await loadConfig("./config.yaml");
-			if (!config?.tags) {
+			if (!config?.domains?.length) {
 				cancel("The current directory is not a valid trustmebro workspace.");
 				return;
 			}

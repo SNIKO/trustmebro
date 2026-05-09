@@ -1,5 +1,5 @@
 import type { LanguageModel } from "ai";
-import { startWorkers, type WorkerHandle } from "./processor.js";
+import { startWorkers, type DomainEntry, type WorkerHandle } from "./processor.js";
 import { createStorage } from "./storage.js";
 import type {
 	AddInput,
@@ -24,10 +24,10 @@ export interface ContentEngine {
 
 export type ContentEngineOptions = {
 	basePath: string;
-	domain: string;
-	tagSchema: string;
+	domains: DomainEntry[];
 	model: LanguageModel;
 	workers?: number;
+	/** Custom prompts keyed by "{domainName}/{sourceId}" */
 	customPrompts?: Record<string, string>;
 };
 
@@ -72,8 +72,7 @@ export async function createContentEngine(
 				storage,
 				initialQueue,
 				model: options.model,
-				domain: options.domain,
-				tagSchema: options.tagSchema,
+				domains: options.domains,
 				customPrompts: options.customPrompts,
 				concurrency: options.workers,
 			});

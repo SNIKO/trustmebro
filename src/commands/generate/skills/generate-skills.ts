@@ -1,8 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Config, ConfigTag, ConfigTags } from "../../../config.js";
-import { createSocialSkill, SOCIAL_SKILL_NAME } from "./social-skill.js";
-import type { AgentType } from "./types.js";
+import type { Config, ConfigTag, ConfigTags, DomainConfig } from "../../../config.js";
+import { DATA_DIR_NAME } from "../../../config.js";
+import {
+	createDomainReference,
+	createSkillIndex,
+	SOCIAL_SKILL_NAME,
+} from "./social-skill.js";
+import type { AgentType, DomainSkillData, SkillCreationOptions } from "./types.js";
 
 /**
  * Select example fields from the tag schema, prioritizing fields with enum values.
@@ -10,7 +15,7 @@ import type { AgentType } from "./types.js";
 function buildExampleFields(
 	tags: ConfigTags,
 	count: number,
-): Record<string, string>[] {
+): Array<{ name: string; value: string }> {
 	const getValue = (tagName: string, t: ConfigTag) =>
 		t.type === "enum" || t.type === "enum[]"
 			? (t.values[0] ?? `${tagName}_val_1`)
@@ -40,55 +45,98 @@ function buildTagReferenceList(tags: ConfigTags): string {
 		.join("\n");
 }
 
+function buildPublishers(domain: DomainConfig): Partial<Record<string, string[]>> {
+	const result: Partial<Record<string, string[]>> = {};
+	for (const [platformId, cfg] of Object.entries(domain.sources)) {
+		if (cfg && cfg.publishers.length > 0) {
+			result[platformId] = cfg.publishers;
+		}
+	}
+	return result;
+}
+
+function buildDomainSkillData(domain: DomainConfig, dataDir: string): DomainSkillData {
+	const processedPath = `${dataDir}/processed/${domain.name}`;
+	const rawPath = `${dataDir}/raw/${domain.name}`;
+	return {
+		name: domain.name,
+		description: domain.description,
+		processedPath,
+		rawPath,
+		tagReferenceList: buildTagReferenceList(domain.tags),
+		exampleFields: buildExampleFields(domain.tags, 4),
+		publishers: buildPublishers(domain),
+	};
+}
+
 /**
- * Get the skill file path based on agent type.
+ * Get the skill folder path based on agent type.
+ * All agents use a folder so the references/ subfolder can live alongside SKILL.md.
  */
-function getSkillPath(agent: AgentType, skillName: string): string {
+function getSkillDir(agent: AgentType): string {
 	switch (agent) {
 		case "claude-code":
-			return path.join(".claude", "skills", skillName, "SKILL.md");
+			return path.join(".claude", "skills", SOCIAL_SKILL_NAME);
 		case "codex":
-			return path.join(".codex", "skills", `${skillName}.md`);
+			return path.join(".codex", "skills", SOCIAL_SKILL_NAME);
 		case "opencode":
-			return path.join(".opencode", "skills", `${skillName}.md`);
+			return path.join(".opencode", "skills", SOCIAL_SKILL_NAME);
 		default:
-			return path.join(".claude", "skills", skillName, "SKILL.md");
+			return path.join(".claude", "skills", SOCIAL_SKILL_NAME);
 	}
 }
 
-async function saveSkill(
-	agent: AgentType,
-	skillName: string,
-	skillContent: string,
-): Promise<string> {
-	const skillPath = getSkillPath(agent, skillName);
-	const skillDir = path.dirname(skillPath);
+function getSkillIndexFileName(agent: AgentType): string {
+	switch (agent) {
+		case "claude-code":
+			return "SKILL.md";
+		case "codex":
+		case "opencode":
+			return "SKILL.md";
+		default:
+			return "SKILL.md";
+	}
+}
 
-	await mkdir(skillDir, { recursive: true });
-	await writeFile(skillPath, skillContent, "utf8");
-
-	return skillPath;
+async function saveFile(filePath: string, content: string): Promise<void> {
+	await mkdir(path.dirname(filePath), { recursive: true });
+	await writeFile(filePath, content, "utf8");
 }
 
 /**
- * Generate a skill file for the give options and agent type.
+ * Generate all skill files (index + per-domain references) for the given agent type.
+ * Returns the list of written file paths.
  */
 export async function generateSkills(
 	config: Config,
 	agent: AgentType,
 ): Promise<string[]> {
-	const data = {
-		agent: agent,
-		exampleFields: buildExampleFields(config.tags, 4),
-		tagReferenceList: buildTagReferenceList(config.tags),
-	};
-	const socialSkillContent = await createSocialSkill(data);
+	const dataDir = DATA_DIR_NAME;
+	const skillDir = getSkillDir(agent);
 
-	const socialSkillPath = await saveSkill(
-		agent,
-		SOCIAL_SKILL_NAME,
-		socialSkillContent,
+	const domainSkillData = config.domains.map((d) =>
+		buildDomainSkillData(d, dataDir),
 	);
 
-	return [socialSkillPath];
+	const options: SkillCreationOptions = {
+		agent,
+		dataDir,
+		domains: domainSkillData,
+	};
+
+	const writtenPaths: string[] = [];
+
+	// Write the index SKILL.md
+	const indexPath = path.join(skillDir, getSkillIndexFileName(agent));
+	await saveFile(indexPath, createSkillIndex(options));
+	writtenPaths.push(indexPath);
+
+	// Write per-domain reference files
+	for (const domainData of domainSkillData) {
+		const refPath = path.join(skillDir, "references", `${domainData.name}.md`);
+		await saveFile(refPath, createDomainReference(domainData, agent));
+		writtenPaths.push(refPath);
+	}
+
+	return writtenPaths;
 }

@@ -115,6 +115,7 @@ async function ingestVideo(args: {
 	} = args;
 
 	const result = await context.engine.add({
+		domain: context.domain,
 		id: videoId,
 		label: details.title ?? videoId,
 		source: "youtube",

@@ -3,11 +3,13 @@ import type { LanguageModel } from "ai";
 import YAML from "yaml";
 import {
   type Config,
+  type DomainConfig,
   DATA_DIR_NAME,
   loadConfig,
   type SourceId,
 } from "../../config.js";
-import { createContentEngine } from "../../content/index.js";
+import { createContentEngine, type ContentEngineOptions } from "../../content/index.js";
+import type { DomainEntry } from "../../content/processor.js";
 import { buildSources } from "../../sources/index.js";
 import type { Source, SourceContext } from "../../sources/types.js";
 import { createLogger } from "../../utils/logger.js";
@@ -54,8 +56,8 @@ async function resolveModel(config: Config): Promise<LanguageModel> {
   return factory(options ? resolveEnvVars(options) : {})(modelName);
 }
 
-function buildTagSchema(config: Config): TagSchema {
-  return Object.entries(config.tags).map(([name, entry]) => ({
+function buildTagSchema(domain: DomainConfig): TagSchema {
+  return Object.entries(domain.tags).map(([name, entry]) => ({
     name,
     type: entry.type,
     description: entry.description ?? "",
@@ -64,35 +66,43 @@ function buildTagSchema(config: Config): TagSchema {
   }));
 }
 
-function buildCustomPrompts(
-  sources: Source[],
-  topic: string,
-  tagSchema: TagSchema
-): Record<string, string> {
-  const tagSchemaJson = JSON.stringify(tagSchema, null, 2);
-  return Object.fromEntries(
-    sources
-      .filter(
-        (s): s is Source & Required<Pick<Source, "getProcessingPrompt">> =>
-          s.getProcessingPrompt != null
-      )
-      .map((s) => [s.sourceId, s.getProcessingPrompt(topic, tagSchemaJson)])
-  );
+function buildDomainEntry(sources: Source[], domain: DomainConfig): DomainEntry {
+  const tagSchema = buildTagSchema(domain);
+  const tagSchemaYaml = YAML.stringify(tagSchema);
+  return { name: domain.name, domain: domain.description, tagSchema: tagSchemaYaml };
 }
 
-function filterSourcesToProcess(
+function buildCustomPrompts(
   sources: Source[],
-  config: Config,
+  domains: DomainConfig[]
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const domain of domains) {
+    const tagSchema = buildTagSchema(domain);
+    const tagSchemaJson = JSON.stringify(tagSchema, null, 2);
+    for (const source of sources) {
+      if (source.getProcessingPrompt) {
+        result[`${domain.name}/${source.sourceId}`] = source.getProcessingPrompt(
+          domain.description,
+          tagSchemaJson
+        );
+      }
+    }
+  }
+  return result;
+}
+
+function filterDomainSources(
+  sources: Source[],
+  domain: DomainConfig,
   flags: IndexCommandFlags
 ): SourceToProcess[] {
   const result: SourceToProcess[] = [];
   for (const source of sources) {
     if (flags.source && source.sourceId !== flags.source) continue;
 
-    const sourceConfig = config.sources[source.sourceId];
-    if (!sourceConfig) {
-      continue;
-    }
+    const sourceConfig = domain.sources[source.sourceId];
+    if (!sourceConfig) continue;
 
     const publisherIds = flags.publisher
       ? [flags.publisher]
@@ -125,7 +135,7 @@ async function runSource(
     if (!publisherId) continue;
 
     try {
-      sourceLogger.info(`Fetched ${i + 1}/${publisherIds.length} publishers`);
+      sourceLogger.info(`Fetching ${i + 1}/${publisherIds.length} publishers`);
       await source.runOnce(context, publisherId);
       sourceLogger.info(`Fetched ${i + 1}/${publisherIds.length} publishers`);
     } catch (error) {
@@ -164,56 +174,75 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
     const workspacePath = flags.workspacePath ?? ".";
     const config = await loadConfig(path.join(workspacePath, "config.yaml"));
     const sources = buildSources();
-    const tagSchema = buildTagSchema(config);
     const model = await resolveModel(config);
 
-    const contentEngine = await createContentEngine({
+    const engineOptions: ContentEngineOptions = {
       basePath: path.join(workspacePath, DATA_DIR_NAME),
-      domain: config.topic,
-      tagSchema: YAML.stringify(tagSchema),
+      domains: config.domains.map((d) => buildDomainEntry(sources, d)),
       model,
       workers: config.indexing.workers,
-      customPrompts: buildCustomPrompts(sources, config.topic, tagSchema),
-    });
-
-    const context: SourceContext = {
-      config,
-      workspacePath,
-      engine: contentEngine,
-      model,
+      customPrompts: buildCustomPrompts(sources, config.domains),
     };
 
-    const sourcesToProcess = filterSourcesToProcess(sources, config, flags);
+    const contentEngine = await createContentEngine(engineOptions);
 
-    if (sourcesToProcess.length === 0) {
+    // Collect all sources across all domains for auth check
+    const allSourcesToProcess = config.domains.flatMap((domain) =>
+      filterDomainSources(sources, domain, flags)
+    );
+
+    if (allSourcesToProcess.length === 0) {
       log.warn("No sources configured.");
       return;
     }
 
-    log.info(`Found ${sourcesToProcess.length} source(s) configured.`);
+    log.info(
+      `Found ${config.domains.length} domain(s) with ${allSourcesToProcess.length} source run(s) configured.`
+    );
 
     await checkAuthentication(
-      sourcesToProcess.map((s) => s.source),
+      [...new Set(allSourcesToProcess.map((s) => s.source))],
       workspacePath
     );
 
     await contentEngine.start();
 
-    const results = await Promise.all(
-      sourcesToProcess.map(({ source, publisherIds }) =>
-        runSource(source, publisherIds, context)
-      )
-    );
+    const allErrors: Array<{ sourceId: SourceId; publisherId: string; error: unknown }> = [];
+
+    for (const domain of config.domains) {
+      const domainSources = filterDomainSources(sources, domain, flags);
+      if (domainSources.length === 0) continue;
+
+      log.info(`Indexing domain '${domain.name}' (${domainSources.length} source(s))`);
+
+      const context: SourceContext = {
+        config,
+        domainConfig: domain,
+        domain: domain.name,
+        workspacePath,
+        engine: contentEngine,
+        model,
+      };
+
+      const results = await Promise.all(
+        domainSources.map(({ source, publisherIds }) =>
+          runSource(source, publisherIds, context)
+        )
+      );
+
+      for (const r of results) {
+        allErrors.push(...r.errors);
+      }
+    }
 
     await contentEngine.waitForIdle();
     await contentEngine.stop();
 
-    log.info("Fetching completed for all sources.");
+    log.info("Fetching completed for all domains.");
 
-    const failed = results.flatMap((r) => r.errors);
-    if (failed.length > 0) {
+    if (allErrors.length > 0) {
       throw new Error(
-        `Indexing completed with ${failed.length} failed publisher run(s) across ${results.length} source(s)`
+        `Indexing completed with ${allErrors.length} failed publisher run(s)`
       );
     }
   } finally {

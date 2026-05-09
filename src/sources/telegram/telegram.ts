@@ -368,6 +368,7 @@ async function processMessage(
 		const messageUrl = `https://t.me/${handle.slice(1)}/${msg.id}`;
 
 		const result = await context.engine.add({
+			domain: context.domain,
 			id: String(msg.id),
 			label,
 			source: "telegram",
@@ -448,7 +449,7 @@ export function createTelegramSource(): Source {
 
 				const ordered = messages.slice().sort((a, b) => a.id - b.id);
 				const minLength =
-					context.config.sources.telegram?.minMessageLength ?? 200;
+					context.domainConfig.sources.telegram?.minMessageLength ?? 200;
 
 				for (const msg of ordered) {
 					try {
