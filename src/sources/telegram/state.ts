@@ -17,6 +17,10 @@ export class TelegramState {
 		);
 	}
 
+	private key(channelId: string): string {
+		return channelId.toLowerCase();
+	}
+
 	async load(): Promise<void> {
 		if (!existsSync(this.filePath)) {
 			this.state = {};
@@ -43,14 +47,15 @@ export class TelegramState {
 	}
 
 	getLastMessageId(channelId: string): number {
-		return this.state[channelId]?.lastMessageId ?? 0;
+		return this.state[this.key(channelId)]?.lastMessageId ?? 0;
 	}
 
 	async markIndexed(channelId: string, messageId: number): Promise<void> {
-		if (!this.state[channelId]) {
-			this.state[channelId] = { lastMessageId: messageId };
-		} else if (messageId > this.state[channelId].lastMessageId) {
-			this.state[channelId].lastMessageId = messageId;
+		const id = this.key(channelId);
+		if (!this.state[id]) {
+			this.state[id] = { lastMessageId: messageId };
+		} else if (messageId > this.state[id].lastMessageId) {
+			this.state[id].lastMessageId = messageId;
 		}
 		await this.save();
 	}

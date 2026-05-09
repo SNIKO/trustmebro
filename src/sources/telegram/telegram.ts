@@ -443,7 +443,7 @@ export function createTelegramSource(): Source {
 				}
 
 				log.info(
-					`Fetched ${messages.length} new messages from @${publisherId})`,
+					`Fetched ${messages.length} new messages from @${publisherId}`,
 				);
 
 				const ordered = messages.slice().sort((a, b) => a.id - b.id);

@@ -26,22 +26,23 @@ export class YouTubeState extends DualFileState<State, SkippedState> {
 
 	contains(channelId: string, videoId: string): boolean {
 		const mainState = this.getMainState();
-		const channelIndex = mainState[channelId];
+		const channelIndex = mainState[channelId.toLowerCase()];
 		return channelIndex ? channelIndex.includes(videoId) : false;
 	}
 
 	isSkipped(channelId: string, videoId: string): boolean {
 		const skippedState = this.getSkippedState();
-		return Boolean(skippedState[channelId]?.[videoId]);
+		return Boolean(skippedState[channelId.toLowerCase()]?.[videoId]);
 	}
 
 	async markIndexed(channelId: string, videoId: string): Promise<void> {
+		const id = channelId.toLowerCase();
 		const mainState = this.getMainState();
-		if (!mainState[channelId]) {
-			mainState[channelId] = [];
+		if (!mainState[id]) {
+			mainState[id] = [];
 		}
 
-		mainState[channelId].push(videoId);
+		mainState[id].push(videoId);
 		this.setMainState(mainState);
 		await this.saveMain();
 	}
@@ -51,12 +52,13 @@ export class YouTubeState extends DualFileState<State, SkippedState> {
 		videoId: string,
 		reason: string,
 	): Promise<void> {
+		const id = channelId.toLowerCase();
 		const skippedState = this.getSkippedState();
-		if (!skippedState[channelId]) {
-			skippedState[channelId] = {};
+		if (!skippedState[id]) {
+			skippedState[id] = {};
 		}
 
-		skippedState[channelId][videoId] = reason;
+		skippedState[id][videoId] = reason;
 		this.setSkippedState(skippedState);
 		await this.saveSkipped();
 	}

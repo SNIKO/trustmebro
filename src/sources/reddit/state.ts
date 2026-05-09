@@ -28,20 +28,24 @@ export class RedditState extends BaseSourceState<State> {
 		return {};
 	}
 
+	private key(subreddit: string): string {
+		return subreddit.toLowerCase();
+	}
+
 	contains(subreddit: string, postId: string): boolean {
-		return postId in (this.state[subreddit]?.posts ?? {});
+		return postId in (this.state[this.key(subreddit)]?.posts ?? {});
 	}
 
 	getCommentCount(subreddit: string, postId: string): number | null {
-		return this.state[subreddit]?.posts[postId] ?? null;
+		return this.state[this.key(subreddit)]?.posts[postId] ?? null;
 	}
 
 	isBackfillComplete(subreddit: string): boolean {
-		return this.state[subreddit]?.backfillComplete ?? false;
+		return this.state[this.key(subreddit)]?.backfillComplete ?? false;
 	}
 
 	getLatestFetched(subreddit: string): number | null {
-		return this.state[subreddit]?.latestFetched ?? null;
+		return this.state[this.key(subreddit)]?.latestFetched ?? null;
 	}
 
 	/**
@@ -66,26 +70,28 @@ export class RedditState extends BaseSourceState<State> {
 		commentCount: number,
 		postCreatedAt: number,
 	): Promise<void> {
-		if (!this.state[subreddit]) {
-			this.state[subreddit] = { posts: {}, backfillComplete: false };
+		const id = this.key(subreddit);
+		if (!this.state[id]) {
+			this.state[id] = { posts: {}, backfillComplete: false };
 		}
 
-		this.state[subreddit].posts[postId] = commentCount;
+		this.state[id].posts[postId] = commentCount;
 
 		// Update latestFetched if this post is newer
-		const prev = this.state[subreddit].latestFetched;
+		const prev = this.state[id].latestFetched;
 		if (prev === undefined || postCreatedAt > prev) {
-			this.state[subreddit].latestFetched = postCreatedAt;
+			this.state[id].latestFetched = postCreatedAt;
 		}
 
 		await this.save();
 	}
 
 	async markBackfillComplete(subreddit: string): Promise<void> {
-		if (!this.state[subreddit]) {
-			this.state[subreddit] = { posts: {}, backfillComplete: true };
+		const id = this.key(subreddit);
+		if (!this.state[id]) {
+			this.state[id] = { posts: {}, backfillComplete: true };
 		} else {
-			this.state[subreddit].backfillComplete = true;
+			this.state[id].backfillComplete = true;
 		}
 		await this.save();
 	}

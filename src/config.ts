@@ -82,7 +82,7 @@ const modelConfigSchema = z.object({
 });
 
 const indexingConfigSchema = z.object({
-	workers: z.coerce.number().int().positive().optional().default(5),
+	workers: z.coerce.number().int().optional().default(5),
 	model: modelConfigSchema,
 });
 
@@ -104,10 +104,54 @@ const configSchema = z.object({
 export type SourceConfig = z.infer<typeof publisherConfigSchema>;
 export type Config = z.infer<typeof configSchema>;
 
+function normalizePublisherId(source: SourceId, id: string): string {
+	let normalized = id;
+	switch (source) {
+		case "youtube":
+		case "telegram":
+		case "twitter":
+			if (normalized.startsWith("@")) normalized = normalized.slice(1);
+			break;
+		case "reddit":
+			if (normalized.startsWith("r/")) normalized = normalized.slice(2);
+			else if (normalized.startsWith("r:")) normalized = normalized.slice(2);
+			break;
+	}
+	return normalized.toLowerCase();
+}
+
+function normalizePublishers(source: SourceId, publishers: string[]): string[] {
+	return publishers.map((p) => normalizePublisherId(source, p));
+}
+
+function normalizeConfigPublishers(config: Config): Config {
+	const { sources } = config;
+	if (!sources) return config;
+
+	const normalizedSources = Object.fromEntries(
+		Object.entries(sources).map(([key, sourceConfig]) => {
+			if (!sourceConfig?.publishers) return [key, sourceConfig];
+			return [
+				key,
+				{
+					...sourceConfig,
+					publishers: normalizePublishers(
+						key as SourceId,
+						sourceConfig.publishers,
+					),
+				},
+			];
+		}),
+	);
+
+	return { ...config, sources: normalizedSources as Config["sources"] };
+}
+
 export async function loadConfig(configPath: string): Promise<Config> {
 	const rawText = await readFile(configPath, "utf8");
 	const clean = rawText.replace(/^\uFEFF/, "");
 	const parsed = parse(clean);
 
-	return configSchema.parse(parsed);
+	const config = configSchema.parse(parsed);
+	return normalizeConfigPublishers(config);
 }

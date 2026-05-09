@@ -1,6 +1,6 @@
+import type { LanguageModel } from "ai";
 import type { Config, SourceId } from "../config.js";
 import type { ContentEngine } from "../content/index.js";
-import type { LanguageModel } from "ai";
 
 export interface SourceContext {
 	config: Config;

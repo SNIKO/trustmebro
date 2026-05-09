@@ -30,7 +30,7 @@ function highlight(text: string, context: string): string {
 }
 
 function highlightPublisher(text: string, context: string): string {
-	const pattern = /(@[\w.]+)/g;
+	const pattern = /(@[\w.]+|r\/[\w.]+)/g;
 	const colorFn = BRAND_COLORS[context] || pc.cyan;
 	return text.replace(pattern, (match) => pc.dim(colorFn(match)));
 }
