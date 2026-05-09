@@ -92,11 +92,6 @@ function renderDocument(tags: Tags, content: string): string {
 	return `---\n${yaml}\n---\n\n${content.trim()}`;
 }
 
-function normalizePublisher(publisher: string): string {
-	if (publisher.startsWith("@")) return publisher;
-	return `@${publisher}`;
-}
-
 function resolveMetadata(
 	ref: DocumentRef,
 	tags?: Tags,
@@ -112,7 +107,7 @@ function resolveMetadata(
 	return {
 		source: str(tags?.source) ?? sourceFromPath,
 		label: str(tags?.title) ?? filename.replace(/\.md$/, ""),
-		publisher: publisher ? normalizePublisher(publisher) : undefined,
+		publisher: publisher,
 	};
 }
 
@@ -138,9 +133,18 @@ export function startWorkers(args: {
 	let activeWorkers = 0;
 	let totalProcessed = 0;
 	let totalErrors = 0;
+	let totalDocuments = 0;
 	const startTime = Date.now();
 	const refWaiters: Array<(ref: DocumentRef | undefined) => void> = [];
 	const idleWaiters: Array<() => void> = [];
+
+	const counts = storage.getCounts();
+	for (const source in counts) {
+		if (counts[source]) {
+			totalDocuments += counts[source].fetched;
+			totalProcessed += counts[source].processed;
+		}
+	}
 
 	function resolveIdleWaiters(): void {
 		if (activeWorkers !== 0 || queue.length !== 0) return;
@@ -190,7 +194,7 @@ export function startWorkers(args: {
 			);
 
 			logger.info(
-				`Processing '${meta.label}' ${meta.publisher ?? "unknown"} (${meta.source})`,
+				`Processing '${meta.label}' ${meta.publisher} (${meta.source})`,
 			);
 
 			const { text } = await generateText({ model, prompt });
@@ -205,7 +209,7 @@ export function startWorkers(args: {
 			}
 
 			logger.info(
-				`Processed '${meta.label}' (${elapsed.toFixed(0)}s, ${queue.length} remaining)`,
+				`Processed '${meta.label}' (${elapsed.toFixed(0)}s, ${totalProcessed}/${totalDocuments})`,
 			);
 
 			await storage.saveProcessed(ref, renderDocument(raw.tags, text));
@@ -251,7 +255,7 @@ export function startWorkers(args: {
 				return;
 			}
 			queue.push(ref);
-			log.debug(`Enqueued document: '${ref}', queue length: ${queue.length}`);
+			totalDocuments++;
 		},
 
 		async waitForIdle() {

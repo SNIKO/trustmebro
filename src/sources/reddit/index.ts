@@ -32,15 +32,15 @@ export function createRedditSource(): Source {
 					: context.config.startDate;
 
 			log.info(
-				`Fetching ${publisherId} posts since ${cutoffDate.toISOString().split("T")[0]}`,
+				`Fetching r/${publisherId} posts since ${cutoffDate.toISOString().split("T")[0]}`,
 			);
 
+			const fetchStart = Date.now();
 			const postsToReindex: RedditPost[] = [];
 			let reachedEndForBackfill = false;
 			let processedCount = 0;
 			let errorCount = 0;
 
-			const fetchStart = Date.now();
 			for await (const batch of listPostsBatched(
 				publisherId,
 				cutoffDate,
@@ -68,13 +68,13 @@ export function createRedditSource(): Source {
 							processedCount++;
 							if (processedCount % 10 === 0) {
 								log.info(
-									`Processed ${processedCount} posts for ${publisherId}`,
+									`Processed ${processedCount} posts for r/${publisherId}`,
 								);
 							}
 						} else if (result.status === "error") {
 							errorCount++;
 							log.error(
-								`Failed to index post "${post.title}": ${result.reason}`,
+								`Failed to index post "${post.title}" for r/${publisherId}: ${result.reason}`,
 							);
 						}
 					} else if (
@@ -94,7 +94,7 @@ export function createRedditSource(): Source {
 				reachedEndForBackfill
 			) {
 				await state.markBackfillComplete(publisherId);
-				log.info(`Backfill completed for subreddit ${publisherId}`);
+				log.info(`Backfill completed for subreddit r/${publisherId}`);
 			}
 
 			if (postsToReindex.length > 0) {
@@ -115,14 +115,14 @@ export function createRedditSource(): Source {
 					} else if (result.status === "error") {
 						errorCount++;
 						log.error(
-							`Failed to re-index post "${post.title}": ${result.reason}`,
+							`Failed to re-index post "${post.title}" for r/${publisherId}: ${result.reason}`,
 						);
 					}
 				}
 			}
 
 			log.info(
-				`Completed ${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`,
+				`Completed r/${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`,
 			);
 		},
 	};

@@ -1,3 +1,4 @@
+import { createLogger } from "../../utils/logger.js";
 import type { SourceContext } from "../types.js";
 import {
 	buildPostUrl,
@@ -10,7 +11,6 @@ import type {
 	RedditPost,
 	RedditPostWithComments,
 } from "./types.js";
-import { createLogger } from "../../utils/logger.js";
 
 const log = createLogger("reddit");
 

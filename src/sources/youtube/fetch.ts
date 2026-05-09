@@ -36,7 +36,7 @@ export async function listVideos(
 	]);
 
 	if (result.code !== 0) {
-		throw new Error(`yt-dlp failed to list ${channelId}: ${result.stderr}`);
+		throw new Error(`yt-dlp failed to list @${channelId}: ${result.stderr}`);
 	}
 
 	const data = JSON.parse(result.stdout) as FlatPlaylist;

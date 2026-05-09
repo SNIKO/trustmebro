@@ -29,9 +29,20 @@ function sanitize(name: string, maxLen = 50): string {
 	return s;
 }
 
-function normalizePublisher(publisher: string): string {
-	if (publisher.startsWith("@")) return publisher;
-	return `@${publisher}`;
+function normalizePublisherForPath(publisher: string): string {
+	return publisher.replace(/^@/, "").replace(/^r\//, "").toLowerCase();
+}
+
+function formatPublisherForYaml(source: string, publisher: string): string {
+	switch (source) {
+		case "youtube":
+		case "telegram":
+			return publisher.startsWith("@") ? publisher : `@${publisher}`;
+		case "reddit":
+			return publisher.startsWith("r/") ? publisher : `r/${publisher}`;
+		default:
+			return publisher;
+	}
 }
 
 export function getSource(ref: DocumentRef): string {
@@ -45,8 +56,8 @@ function generateRef(input: AddInput): DocumentRef {
 	const slug = sanitize(input.label) || sanitize(input.id ?? "") || "unknown";
 	const source = sanitize(input.source, 20) || "unknown";
 	const publisher = input.publisher
-		? normalizePublisher(sanitize(input.publisher) || "unknown")
-		: undefined;
+		? normalizePublisherForPath(input.publisher)
+		: "unknown";
 	return path.posix.join(
 		source,
 		...(publisher ? [publisher] : []),
@@ -63,7 +74,7 @@ function buildRawContent(input: AddInput): string {
 		...input.tags,
 		source: input.source,
 		...(input.publisher
-			? { publisher: normalizePublisher(input.publisher) }
+			? { publisher: formatPublisherForYaml(input.source, input.publisher) }
 			: {}),
 	};
 	const yaml = YAML.stringify(header).trim();

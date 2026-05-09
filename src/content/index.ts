@@ -66,6 +66,8 @@ export async function createContentEngine(
 
 		async start() {
 			if (workerHandle) return;
+			if (options.workers === 0) return; // No processing if workers set to 0
+
 			workerHandle = startWorkers({
 				storage,
 				initialQueue,
