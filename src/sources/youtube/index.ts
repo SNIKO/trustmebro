@@ -23,16 +23,11 @@ export function createYoutubeSource(): Source | null {
 			const fetchStart = Date.now();
 			const videos = await listVideos(publisherId);
 			const newVideos = videos.filter(
-				(v) =>
-					v.id &&
-					!state.contains(publisherId, v.id) &&
-					!state.isSkipped(publisherId, v.id),
+				(v) => v.id && !state.contains(publisherId, v.id) && !state.isSkipped(publisherId, v.id),
 			);
 
 			const fetchElapsed = ((Date.now() - fetchStart) / 1000).toFixed(0);
-			log.info(
-				`Fetched ${newVideos.length} videos for @${publisherId} (${fetchElapsed}s)`,
-			);
+			log.info(`Fetched ${newVideos.length} videos for @${publisherId} (${fetchElapsed}s)`);
 
 			let processedCount = 0;
 			let errorCount = 0;
@@ -53,29 +48,18 @@ export function createYoutubeSource(): Source | null {
 				if (result.status === "indexed") {
 					processedCount++;
 					if (processedCount % 10 === 0 || i === newVideos.length - 1) {
-						log.info(
-							`Processed ${processedCount}/${newVideos.length} videos for @${publisherId}`,
-						);
+						log.info(`Processed ${processedCount}/${newVideos.length} videos for @${publisherId}`);
 					}
 				} else if (result.status === "error") {
 					errorCount++;
-					log.error(
-						`Failed to index video "${title}" for @${publisherId}: ${result.reason}`,
-					);
-				} else if (
-					result.status === "skipped" &&
-					result.reason === "before-start-date"
-				) {
-					log.info(
-						`Reached start date (${processedCount} processed) for @${publisherId}`,
-					);
+					log.error(`Failed to index video "${title}" for @${publisherId}: ${result.reason}`);
+				} else if (result.status === "skipped" && result.reason === "before-start-date") {
+					log.info(`Reached start date (${processedCount} processed) for @${publisherId}`);
 					break;
 				}
 			}
 
-			log.info(
-				`Completed @${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`,
-			);
+			log.info(`Completed @${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`);
 		},
 	};
 }

@@ -6,10 +6,7 @@ export type CommandResult = {
 	stderr: string;
 };
 
-export async function runCommand(
-	args: string[],
-	options?: { cwd?: string },
-): Promise<CommandResult> {
+export async function runCommand(args: string[], options?: { cwd?: string }): Promise<CommandResult> {
 	const [cmd, ...rest] = args;
 	if (!cmd) throw new Error("runCommand requires at least one argument");
 

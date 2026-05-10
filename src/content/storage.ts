@@ -7,9 +7,7 @@ export interface Storage {
 	saveRaw(
 		input: AddInput,
 	): Promise<
-		| { type: "added"; ref: DocumentRef }
-		| { type: "duplicate"; ref: DocumentRef }
-		| { type: "error"; message: string }
+		{ type: "added"; ref: DocumentRef } | { type: "duplicate"; ref: DocumentRef } | { type: "error"; message: string }
 	>;
 	readRaw(ref: DocumentRef): Promise<{ tags: Tags; content: string }>;
 	saveProcessed(ref: DocumentRef, content: string): Promise<void>;
@@ -62,16 +60,8 @@ function generateRef(input: AddInput): DocumentRef {
 	const slug = sanitize(input.label) || sanitize(input.id ?? "") || "unknown";
 	const domain = sanitize(input.domain, 50) || "unknown";
 	const source = sanitize(input.source, 20) || "unknown";
-	const publisher = input.publisher
-		? normalizePublisherForPath(input.publisher)
-		: "unknown";
-	return path.posix.join(
-		domain,
-		source,
-		...(publisher ? [publisher] : []),
-		ym,
-		`${iso}-${slug}.md`,
-	);
+	const publisher = input.publisher ? normalizePublisherForPath(input.publisher) : "unknown";
+	return path.posix.join(domain, source, ...(publisher ? [publisher] : []), ym, `${iso}-${slug}.md`);
 }
 
 function buildRawContent(input: AddInput): string {
@@ -81,9 +71,7 @@ function buildRawContent(input: AddInput): string {
 		created_at: (input.creationDate ?? new Date()).toISOString(),
 		...input.tags,
 		source: input.source,
-		...(input.publisher
-			? { publisher: formatPublisherForYaml(input.source, input.publisher) }
-			: {}),
+		...(input.publisher ? { publisher: formatPublisherForYaml(input.source, input.publisher) } : {}),
 	};
 	const yaml = YAML.stringify(header).trim();
 	return `---\n${yaml}\n---\n\n${input.content.trim()}`;
@@ -118,9 +106,7 @@ export async function createStorage(baseDir: string): Promise<Storage> {
 		const results: DocumentRef[] = [];
 
 		async function walk(dir: string, rel: string): Promise<void> {
-			const entries = await readdir(dir, { withFileTypes: true }).catch(
-				() => [],
-			);
+			const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
 			for (const e of entries) {
 				const full = path.join(dir, e.name);
 				const next = path.posix.join(rel, e.name);
@@ -169,9 +155,7 @@ export async function createStorage(baseDir: string): Promise<Storage> {
 
 		async readRaw(ref) {
 			const raw = await readFile(resolvePath("raw", ref), "utf8");
-			const match = /^---\n(?<yaml>[\s\S]*?)\n---\n(?<content>[\s\S]*)$/.exec(
-				raw,
-			);
+			const match = /^---\n(?<yaml>[\s\S]*?)\n---\n(?<content>[\s\S]*)$/.exec(raw);
 			if (!match) throw new Error(`Invalid YAML front matter in ${ref}`);
 			const { yaml, content } = match.groups as {
 				yaml: string;
@@ -202,9 +186,7 @@ export async function createStorage(baseDir: string): Promise<Storage> {
 		},
 
 		getCounts() {
-			return Object.fromEntries(
-				Object.entries(counts).map(([k, v]) => [k, { ...v }]),
-			);
+			return Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, { ...v }]));
 		},
 	};
 }

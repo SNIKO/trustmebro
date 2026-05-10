@@ -36,8 +36,6 @@ export function getSourceColor(source: string): (text: string) => string {
 	}
 }
 
-export function getStatusColor(
-	status: "success" | "error" | "warning" | "info" | "summary",
-): (text: string) => string {
+export function getStatusColor(status: "success" | "error" | "warning" | "info" | "summary"): (text: string) => string {
 	return colors[status];
 }

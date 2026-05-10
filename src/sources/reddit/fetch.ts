@@ -1,8 +1,4 @@
-import type {
-	RedditComment,
-	RedditPost,
-	RedditPostWithComments,
-} from "./types.js";
+import type { RedditComment, RedditPost, RedditPostWithComments } from "./types.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -56,9 +52,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 	});
 
 	if (!response.ok) {
-		throw new Error(
-			`Reddit API error: ${response.status} ${response.statusText}`,
-		);
+		throw new Error(`Reddit API error: ${response.status} ${response.statusText}`);
 	}
 
 	return response.json() as Promise<T>;
@@ -170,9 +164,7 @@ export async function fetchPostWithComments(
 	}
 }
 
-function parseComments(
-	children: Array<{ kind: string; data: RedditCommentData }>,
-): RedditComment[] {
+function parseComments(children: Array<{ kind: string; data: RedditCommentData }>): RedditComment[] {
 	const comments: RedditComment[] = [];
 
 	for (const child of children) {

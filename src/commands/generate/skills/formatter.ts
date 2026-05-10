@@ -1,10 +1,6 @@
 import type { AgentType } from "./types.js";
 
-export function generateFrontmatter(
-	skillName: string,
-	skillDescription: string,
-	agent: AgentType,
-): string {
+export function generateFrontmatter(skillName: string, skillDescription: string, agent: AgentType): string {
 	switch (agent) {
 		case "claude-code":
 			return `---

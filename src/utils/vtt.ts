@@ -23,8 +23,5 @@ function stripTags(input: string): string {
 }
 
 function decodeEntities(input: string): string {
-	return input
-		.replaceAll("&amp;", "&")
-		.replaceAll("&gt;", ">")
-		.replaceAll("&lt;", "<");
+	return input.replaceAll("&amp;", "&").replaceAll("&gt;", ">").replaceAll("&lt;", "<");
 }

@@ -71,12 +71,7 @@ export interface DomainEntry {
 	tagSchema: string;
 }
 
-function buildPrompt(
-	rawContent: string,
-	domain: string,
-	tagSchema: string,
-	customPrompt?: string,
-): string {
+function buildPrompt(rawContent: string, domain: string, tagSchema: string, customPrompt?: string): string {
 	if (customPrompt) {
 		return customPrompt.replaceAll("{CONTENT}", rawContent);
 	}
@@ -98,17 +93,13 @@ function renderDocument(tags: Tags, content: string): string {
 	return `---\n${yaml}\n---\n\n${content.trim()}`;
 }
 
-function resolveMetadata(
-	ref: DocumentRef,
-	tags?: Tags,
-): { source: string; publisher?: string; label: string } {
+function resolveMetadata(ref: DocumentRef, tags?: Tags): { source: string; publisher?: string; label: string } {
 	const parts = ref.split("/");
 	const filename = parts.at(-1) ?? "";
 	// ref format: {domain}/{source}/{publisher}/{ym}/{slug}.md
 	const sourceFromPath = parts[1] ?? "unknown";
 	const publisherFromPath = parts.length > 4 ? parts[2] : undefined;
-	const str = (v: unknown) =>
-		typeof v === "string" && v.trim() ? v.trim() : undefined;
+	const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 	const publisher = str(tags?.publisher) ?? publisherFromPath;
 	return {
@@ -186,9 +177,7 @@ export function startWorkers(args: {
 
 		if (readError || !raw) {
 			const message =
-				readError instanceof Error
-					? readError.message
-					: String(readError ?? "Failed to read raw document");
+				readError instanceof Error ? readError.message : String(readError ?? "Failed to read raw document");
 			logger.error(`Failed to read document: ${message}`);
 			return;
 		}
@@ -197,9 +186,7 @@ export function startWorkers(args: {
 			const domainName = getDomainFromRef(ref);
 			const domainEntry = domainMap.get(domainName);
 			if (!domainEntry) {
-				logger.error(
-					`Unknown domain '${domainName}' for ref ${ref} — skipping`,
-				);
+				logger.error(`Unknown domain '${domainName}' for ref ${ref} — skipping`);
 				totalErrors++;
 				return;
 			}
@@ -213,31 +200,23 @@ export function startWorkers(args: {
 				customPrompts?.[customPromptKey],
 			);
 
-			logger.info(
-				`Processing '${meta.label}' ${meta.publisher} (${meta.source})`,
-			);
+			logger.info(`Processing '${meta.label}' ${meta.publisher} (${meta.source})`);
 
 			const { text } = await generateText({ model, prompt });
 			const elapsed = (Date.now() - start) / 1000;
 
 			if (!text) {
-				logger.error(
-					`No text generated for ${meta.label} by LLM in ${elapsed.toFixed(2)}s - skipping document.`,
-				);
+				logger.error(`No text generated for ${meta.label} by LLM in ${elapsed.toFixed(2)}s - skipping document.`);
 				totalErrors++;
 				return;
 			}
 
-			logger.info(
-				`Processed '${meta.label}' (${elapsed.toFixed(0)}s, ${totalProcessed}/${totalDocuments})`,
-			);
+			logger.info(`Processed '${meta.label}' (${elapsed.toFixed(0)}s, ${totalProcessed}/${totalDocuments})`);
 
 			await storage.saveProcessed(ref, renderDocument(raw.tags, text));
 			totalProcessed++;
 		} catch (err) {
-			logger.error(
-				`Failed to process document '${meta.label}': ${err instanceof Error ? err.message : String(err)}`,
-			);
+			logger.error(`Failed to process document '${meta.label}': ${err instanceof Error ? err.message : String(err)}`);
 			totalErrors++;
 		}
 	}
@@ -262,9 +241,7 @@ export function startWorkers(args: {
 
 	// Start worker loops
 	log.info(`Starting ${concurrency} worker(s) for content enrichment...`);
-	const workers = Array.from({ length: concurrency }, (_, index) =>
-		workerLoop(index),
-	);
+	const workers = Array.from({ length: concurrency }, (_, index) => workerLoop(index));
 
 	return {
 		enqueue(ref) {
@@ -292,9 +269,7 @@ export function startWorkers(args: {
 			}
 			await Promise.all(workers);
 			const totalTime = ((Date.now() - startTime) / 1000).toFixed(0);
-			log.info(
-				`Completed ${totalProcessed} documents, ${totalErrors} errors (${totalTime}s)`,
-			);
+			log.info(`Completed ${totalProcessed} documents, ${totalErrors} errors (${totalTime}s)`);
 		},
 	};
 }

@@ -988,18 +988,7 @@
 	"live_status": "not_live",
 	"media_type": "video",
 	"release_timestamp": null,
-	"_format_sort_fields": [
-		"quality",
-		"res",
-		"fps",
-		"hdr:12",
-		"source",
-		"vcodec",
-		"channels",
-		"acodec",
-		"lang",
-		"proto"
-	],
+	"_format_sort_fields": ["quality", "res", "fps", "hdr:12", "source", "vcodec", "channels", "acodec", "lang", "proto"],
 	"automatic_captions": {
 		"ab": [
 			{

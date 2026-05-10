@@ -1,27 +1,17 @@
 import { z } from "zod";
 import { DualFileState } from "../base-state.js";
 
-const stateSchema = z
-	.record(z.string(), z.array(z.string()).default([]))
-	.default({});
+const stateSchema = z.record(z.string(), z.array(z.string()).default([])).default({});
 
 type State = z.infer<typeof stateSchema>;
 
-const skippedStateSchema = z
-	.record(z.string(), z.record(z.string(), z.string()).default({}))
-	.default({});
+const skippedStateSchema = z.record(z.string(), z.record(z.string(), z.string()).default({})).default({});
 
 type SkippedState = z.infer<typeof skippedStateSchema>;
 
 export class YouTubeState extends DualFileState<State, SkippedState> {
 	constructor(workspacePath: string) {
-		super(
-			workspacePath,
-			"index-youtube.yaml",
-			"skipped-youtube.yaml",
-			stateSchema,
-			skippedStateSchema,
-		);
+		super(workspacePath, "index-youtube.yaml", "skipped-youtube.yaml", stateSchema, skippedStateSchema);
 	}
 
 	contains(channelId: string, videoId: string): boolean {
@@ -47,11 +37,7 @@ export class YouTubeState extends DualFileState<State, SkippedState> {
 		await this.saveMain();
 	}
 
-	async markSkipped(
-		channelId: string,
-		videoId: string,
-		reason: string,
-	): Promise<void> {
+	async markSkipped(channelId: string, videoId: string, reason: string): Promise<void> {
 		const id = channelId.toLowerCase();
 		const skippedState = this.getSkippedState();
 		if (!skippedState[id]) {

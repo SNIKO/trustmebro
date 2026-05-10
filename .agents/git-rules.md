@@ -5,7 +5,7 @@
 - `master` - the main branch
 - `{change-type}/{semantic-name}` - feature branches, where `change-type` is one of `feat`, `fix`, `refactor`, etc. and `semantic-name` describes the change (e.g., `feat/add-login`).
 
-**Never** commit directly to `master`. Always create a feature branch and open a pull request for review.
+**Never** commit directly to `master`. Always create a feature branch before committing changes.
 
 ## Pull Requests
 
@@ -25,3 +25,7 @@ Format: `{Change Type}: {Short Description}` (e.g., `feat: add login endpoint`).
 | `build` | Build system/dependencies |
 | `ci` | CI/config changes |
 | `chore` | Maintenance/misc |
+
+## Tools
+
+Use `gh cli` for GitHub operations

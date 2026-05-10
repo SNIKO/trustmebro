@@ -52,11 +52,7 @@ export class RedditState extends BaseSourceState<State> {
 	 * Check if a post should be re-indexed based on comment count increase.
 	 * Only considers posts within the overlay window (recent posts that may get more comments).
 	 */
-	shouldReindex(
-		subreddit: string,
-		postId: string,
-		currentCommentCount: number,
-	): boolean {
+	shouldReindex(subreddit: string, postId: string, currentCommentCount: number): boolean {
 		const storedCount = this.getCommentCount(subreddit, postId);
 		if (storedCount === null) return false;
 
@@ -64,12 +60,7 @@ export class RedditState extends BaseSourceState<State> {
 		return ratio >= COMMENT_INCREASE_THRESHOLD;
 	}
 
-	async markIndexed(
-		subreddit: string,
-		postId: string,
-		commentCount: number,
-		postCreatedAt: number,
-	): Promise<void> {
+	async markIndexed(subreddit: string, postId: string, commentCount: number, postCreatedAt: number): Promise<void> {
 		const id = this.key(subreddit);
 		if (!this.state[id]) {
 			this.state[id] = { posts: {}, backfillComplete: false };
@@ -88,10 +79,10 @@ export class RedditState extends BaseSourceState<State> {
 
 	async markBackfillComplete(subreddit: string): Promise<void> {
 		const id = this.key(subreddit);
-		if (!this.state[id]) {
-			this.state[id] = { posts: {}, backfillComplete: true };
-		} else {
+		if (this.state[id]) {
 			this.state[id].backfillComplete = true;
+		} else {
+			this.state[id] = { posts: {}, backfillComplete: true };
 		}
 		await this.save();
 	}

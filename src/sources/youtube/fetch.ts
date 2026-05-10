@@ -21,9 +21,7 @@ export function hasYtDlp(): boolean {
 	}
 }
 
-export async function listVideos(
-	channelId: string,
-): Promise<FlatPlaylistEntry[]> {
+export async function listVideos(channelId: string): Promise<FlatPlaylistEntry[]> {
 	const url = resolveChannelUrl(channelId);
 
 	const result = await runCommand([
@@ -48,23 +46,12 @@ export type VideoDetailsResult =
 	| { ok: true; details: YtDlpVideo }
 	| { ok: false; reason: "members only" | "yt-dlp-failed"; message?: string };
 
-export async function fetchVideoDetails(
-	videoUrl: string,
-): Promise<VideoDetailsResult> {
-	const result = await runCommand([
-		YT_DLP,
-		"--dump-single-json",
-		"--skip-download",
-		"--no-warnings",
-		videoUrl,
-	]);
+export async function fetchVideoDetails(videoUrl: string): Promise<VideoDetailsResult> {
+	const result = await runCommand([YT_DLP, "--dump-single-json", "--skip-download", "--no-warnings", videoUrl]);
 
 	if (result.code !== 0) {
 		const combined = `${result.stderr}\n${result.stdout}`.toLowerCase();
-		if (
-			combined.includes("members-only") ||
-			combined.includes("members only")
-		) {
+		if (combined.includes("members-only") || combined.includes("members only")) {
 			return { ok: false, reason: "members only", message: result.stderr };
 		}
 		return { ok: false, reason: "yt-dlp-failed", message: result.stderr };
@@ -73,20 +60,12 @@ export async function fetchVideoDetails(
 	return { ok: true, details: JSON.parse(result.stdout) as YtDlpVideo };
 }
 
-export async function fetchTranscript(
-	videoUrl: string,
-	details?: YtDlpVideo,
-): Promise<string | null> {
+export async function fetchTranscript(videoUrl: string, details?: YtDlpVideo): Promise<string | null> {
 	const tempDir = await mkdtemp(path.join(os.tmpdir(), "trustmebro-yt-"));
 	try {
 		const langs = getLanguagePriority(details);
 		// Try manual subtitles first
-		const manualResult = await downloadSubtitles(
-			videoUrl,
-			tempDir,
-			false,
-			langs,
-		);
+		const manualResult = await downloadSubtitles(videoUrl, tempDir, false, langs);
 		if (manualResult) {
 			return manualResult;
 		}
@@ -161,22 +140,11 @@ async function downloadSubtitles(
 }
 
 /** Find any subtitle file in the directory */
-async function findSubtitleFile(
-	workingDir: string,
-	langsStr: string,
-): Promise<{ path: string; ext: string } | null> {
+async function findSubtitleFile(workingDir: string, langsStr: string): Promise<{ path: string; ext: string } | null> {
 	const files = await readdir(workingDir);
 
 	// Priority order for formats
-	const formatPriority = [
-		"vtt",
-		"srt",
-		"json3",
-		"ttml",
-		"srv3",
-		"srv2",
-		"srv1",
-	];
+	const formatPriority = ["vtt", "srt", "json3", "ttml", "srv3", "srv2", "srv1"];
 	// Parse language priority from the string passed to yt-dlp
 	// We want to try finding files that match the requested languages in order
 	// e.g. "ru.*,ru,en.*,en" -> try matching files with .ru., .en.

@@ -1,16 +1,7 @@
 import type { LanguageModel } from "ai";
-import {
-	startWorkers,
-	type DomainEntry,
-	type WorkerHandle,
-} from "./processor.js";
+import { type DomainEntry, startWorkers, type WorkerHandle } from "./processor.js";
 import { createStorage } from "./storage.js";
-import type {
-	AddInput,
-	AddResult,
-	DocumentRef,
-	SourceCounts,
-} from "./types.js";
+import type { AddInput, AddResult, DocumentRef, SourceCounts } from "./types.js";
 
 export type {
 	AddInput,
@@ -35,9 +26,7 @@ export type ContentEngineOptions = {
 	customPrompts?: Record<string, string>;
 };
 
-export async function createContentEngine(
-	options: ContentEngineOptions,
-): Promise<ContentEngine> {
+export async function createContentEngine(options: ContentEngineOptions): Promise<ContentEngine> {
 	const storage = await createStorage(options.basePath);
 	const initialQueue: DocumentRef[] = [];
 
