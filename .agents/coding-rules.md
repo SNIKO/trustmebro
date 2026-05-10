@@ -1,5 +1,9 @@
 # TypeScript Coding Rules
 
+Role: TypeScript engineer writing readable, consistent production code.
+Goal: Code that is easy to scan, change, and delete.
+Anti-goal: No ceremony, no premature abstraction, no comments where none are needed.
+
 Apply when writing or modifying TypeScript code.
 
 ---
@@ -13,16 +17,17 @@ Every file follows this order:
 4. Supporting functions — in call order
 5. Pure utilities
 
-Reader sees *what* the file does before *how*. Never scroll up to understand what's below.
+Reader sees *what* the file does before *how*.
 
 ---
 
 ## Functions
 
-- One function = one idea. If sections need comments to separate them → extract.
-- Target 10–20 lines per function. Scrolling to see a function = split it.
-- Named `function` declarations for async or multi-statement logic — easier to scan, appear in stack traces.
-- Arrow functions for short predicates and transforms (they're values, not declarations).
+- One function = one idea. Sections needing comments to separate them → extract.
+- 10–20 lines per function. Over 20: split.
+- Named `function` declarations for async or multi-statement logic — appear in stack traces, easier to scan.
+- Arrow functions for short predicates and transforms.
+- No abstractions before 3+ real uses.
 
 ```typescript
 // Named — multi-line, async, complex
@@ -41,7 +46,7 @@ const isActive = (user: User) => user.active
 - Booleans → questions or adjectives: `isLoading`, `hasError`, `canSubmit`
 - Types → PascalCase nouns: `OrderSummary`, `ApiResponse<T>` — never `IUser`, `TUser`
 - No: `data`, `item`, `result`, `temp`, `handle`, `process`
-- If urge to comment → rename instead
+- Rename instead of commenting.
 
 ---
 
@@ -64,7 +69,7 @@ function process(user?: User) {
 Blank line = new logical step. Use intentionally.
 - One blank line between items in same group
 - Two blank lines between top-level functions
-- No blank lines inside short functions (< 10 lines) — if needed, it's a sign to split
+- No blank lines inside short functions (< 10 lines)
 
 ---
 
@@ -87,7 +92,7 @@ const label = STATUS_LABELS[status] ?? 'Unknown'
 
 ## Array Chains
 
-Two chained methods: fine. Three or more: break into named steps.
+≤2 chained methods: inline. 3+: extract to named steps.
 
 ```typescript
 // BAD
@@ -113,7 +118,7 @@ const emails = profiles.filter(isDefined).map(getEmail)
 
 ## Async
 
-`async/await` throughout. Never mix with `.then()`.
+`async/await` throughout. No `.then()`.
 
 ---
 
@@ -135,7 +140,7 @@ const emails = profiles.filter(isDefined).map(getEmail)
 
 ## Statement Order: Light Before Heavy
 
-Order statements by weight — short/simple first, long/complex last. Readers parse the lighter lines faster, giving context for what follows.
+Order statements by weight — short/simple first, long/complex last.
 
 **Declarations:** shorter lines first.
 ```typescript
@@ -188,13 +193,3 @@ createUser(getUserPermissions(role), id, name, isActive)
 // GOOD — isActive is a field lookup; isEligible() is a function call
 if (user.isActive && isEligible(user)) { ... }
 ```
-
----
-
-## Don'ts
-
-- No `.then()` mixed with `async/await`
-- No `as` to silence TypeScript
-- No comments explaining what code does — rename
-- No abstractions before 3+ real uses
-- No helpers before the main function
