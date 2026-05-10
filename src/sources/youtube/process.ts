@@ -45,7 +45,7 @@ export async function processVideo(args: {
 		}
 
 		const publishedAt = new Date(details.timestamp * 1000);
-		if (publishedAt < context.config.startDate) {
+		if (publishedAt < context.domainConfig.startDate) {
 			return {
 				videoId,
 				status: "skipped",

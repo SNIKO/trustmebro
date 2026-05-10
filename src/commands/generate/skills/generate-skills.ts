@@ -1,13 +1,22 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Config, ConfigTag, ConfigTags, DomainConfig } from "../../../config.js";
+import type {
+	Config,
+	ConfigTag,
+	ConfigTags,
+	DomainConfig,
+} from "../../../config.js";
 import { DATA_DIR_NAME } from "../../../config.js";
 import {
 	createDomainReference,
 	createSkillIndex,
 	SOCIAL_SKILL_NAME,
 } from "./social-skill.js";
-import type { AgentType, DomainSkillData, SkillCreationOptions } from "./types.js";
+import type {
+	AgentType,
+	DomainSkillData,
+	SkillCreationOptions,
+} from "./types.js";
 
 /**
  * Select example fields from the tag schema, prioritizing fields with enum values.
@@ -45,7 +54,9 @@ function buildTagReferenceList(tags: ConfigTags): string {
 		.join("\n");
 }
 
-function buildPublishers(domain: DomainConfig): Partial<Record<string, string[]>> {
+function buildPublishers(
+	domain: DomainConfig,
+): Partial<Record<string, string[]>> {
 	const result: Partial<Record<string, string[]>> = {};
 	for (const [platformId, cfg] of Object.entries(domain.sources)) {
 		if (cfg && cfg.publishers.length > 0) {
@@ -55,7 +66,10 @@ function buildPublishers(domain: DomainConfig): Partial<Record<string, string[]>
 	return result;
 }
 
-function buildDomainSkillData(domain: DomainConfig, dataDir: string): DomainSkillData {
+function buildDomainSkillData(
+	domain: DomainConfig,
+	dataDir: string,
+): DomainSkillData {
 	const processedPath = `${dataDir}/processed/${domain.name}`;
 	const rawPath = `${dataDir}/raw/${domain.name}`;
 	return {
@@ -134,7 +148,7 @@ export async function generateSkills(
 	// Write per-domain reference files
 	for (const domainData of domainSkillData) {
 		const refPath = path.join(skillDir, "references", `${domainData.name}.md`);
-		await saveFile(refPath, createDomainReference(domainData, agent));
+		await saveFile(refPath, createDomainReference(domainData));
 		writtenPaths.push(refPath);
 	}
 

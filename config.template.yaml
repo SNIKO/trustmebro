@@ -2,12 +2,6 @@
 # Copy this file to your workspace directory and customize for your use case
 
 # ============================================================================
-# START DATE
-# ============================================================================
-# Fetch content published on or after this date (YYYY-MM-DD format)
-startDate: 2025-12-01
-
-# ============================================================================
 # INDEXING CONFIGURATION
 # ============================================================================
 # Configure the LLM provider and workers for content processing (tagging, summarization).
@@ -65,6 +59,9 @@ domains:
   - name: stock-market
     description: "Stock market, investing, and financial markets (equities, ETFs,
       portfolio management, macro economics)"
+
+    # Fetch content published on or after this date (YYYY-MM-DD format)
+    startDate: 2025-12-01
 
     # -------------------------------------------------------------------------
     # SOURCES
@@ -223,6 +220,9 @@ domains:
   - name: ai-research
     description: "Artificial intelligence research, LLM developments, AI tools, and
       machine learning breakthroughs"
+
+    # Fetch content published on or after this date (YYYY-MM-DD format)
+    startDate: 2025-12-01
 
     sources:
       youtube:

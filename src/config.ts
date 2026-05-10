@@ -104,12 +104,13 @@ const domainConfigSchema = z.object({
 			"Domain name must be kebab-case (e.g. stock-market)",
 		),
 	description: z.string(),
+	/** Fetch content published on or after this date. */
+	startDate: z.coerce.date(),
 	sources: domainSourcesSchema,
 	tags: tagsSchema,
 });
 
 const configSchema = z.object({
-	startDate: z.coerce.date(),
 	indexing: indexingConfigSchema,
 	domains: z.array(domainConfigSchema).min(1),
 });

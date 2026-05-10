@@ -37,7 +37,7 @@ export async function processPost(args: {
 		}
 
 		const publishedAt = new Date(post.created_utc * 1000);
-		if (publishedAt < context.config.startDate) {
+		if (publishedAt < context.domainConfig.startDate) {
 			return {
 				postId,
 				status: "skipped",

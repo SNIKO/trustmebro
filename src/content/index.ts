@@ -1,5 +1,9 @@
 import type { LanguageModel } from "ai";
-import { startWorkers, type DomainEntry, type WorkerHandle } from "./processor.js";
+import {
+	startWorkers,
+	type DomainEntry,
+	type WorkerHandle,
+} from "./processor.js";
 import { createStorage } from "./storage.js";
 import type {
 	AddInput,

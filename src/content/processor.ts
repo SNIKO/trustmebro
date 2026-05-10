@@ -197,7 +197,9 @@ export function startWorkers(args: {
 			const domainName = getDomainFromRef(ref);
 			const domainEntry = domainMap.get(domainName);
 			if (!domainEntry) {
-				logger.error(`Unknown domain '${domainName}' for ref ${ref} — skipping`);
+				logger.error(
+					`Unknown domain '${domainName}' for ref ${ref} — skipping`,
+				);
 				totalErrors++;
 				return;
 			}
