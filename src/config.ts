@@ -88,20 +88,35 @@ const indexingConfigSchema = z.object({
 
 export type ModelConfig = z.infer<typeof modelConfigSchema>;
 
+const domainSourcesSchema = z.object({
+	youtube: publisherConfigSchema.optional(),
+	telegram: telegramConfigSchema.optional(),
+	twitter: publisherConfigSchema.optional(),
+	reddit: redditConfigSchema.optional(),
+});
+
+const domainConfigSchema = z.object({
+	/** Slug used as the folder name for storage and reference files (kebab-case). */
+	name: z
+		.string()
+		.regex(
+			/^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+			"Domain name must be kebab-case (e.g. stock-market)",
+		),
+	description: z.string(),
+	sources: domainSourcesSchema,
+	tags: tagsSchema,
+});
+
 const configSchema = z.object({
 	startDate: z.coerce.date(),
-	topic: z.string(),
 	indexing: indexingConfigSchema,
-	tags: tagsSchema,
-	sources: z.object({
-		youtube: publisherConfigSchema.optional(),
-		telegram: telegramConfigSchema.optional(),
-		twitter: publisherConfigSchema.optional(),
-		reddit: redditConfigSchema.optional(),
-	}),
+	domains: z.array(domainConfigSchema).min(1),
 });
 
 export type SourceConfig = z.infer<typeof publisherConfigSchema>;
+export type DomainSources = z.infer<typeof domainSourcesSchema>;
+export type DomainConfig = z.infer<typeof domainConfigSchema>;
 export type Config = z.infer<typeof configSchema>;
 
 function normalizePublisherId(source: SourceId, id: string): string {
@@ -124,12 +139,9 @@ function normalizePublishers(source: SourceId, publishers: string[]): string[] {
 	return publishers.map((p) => normalizePublisherId(source, p));
 }
 
-function normalizeConfigPublishers(config: Config): Config {
-	const { sources } = config;
-	if (!sources) return config;
-
+function normalizeDomainSources(domain: DomainConfig): DomainConfig {
 	const normalizedSources = Object.fromEntries(
-		Object.entries(sources).map(([key, sourceConfig]) => {
+		Object.entries(domain.sources).map(([key, sourceConfig]) => {
 			if (!sourceConfig?.publishers) return [key, sourceConfig];
 			return [
 				key,
@@ -143,8 +155,7 @@ function normalizeConfigPublishers(config: Config): Config {
 			];
 		}),
 	);
-
-	return { ...config, sources: normalizedSources as Config["sources"] };
+	return { ...domain, sources: normalizedSources as DomainConfig["sources"] };
 }
 
 export async function loadConfig(configPath: string): Promise<Config> {
@@ -153,5 +164,8 @@ export async function loadConfig(configPath: string): Promise<Config> {
 	const parsed = parse(clean);
 
 	const config = configSchema.parse(parsed);
-	return normalizeConfigPublishers(config);
+	return {
+		...config,
+		domains: config.domains.map(normalizeDomainSources),
+	};
 }

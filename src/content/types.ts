@@ -6,6 +6,7 @@ export type SourceCounts = Record<
 >;
 
 export type AddInput = {
+	domain: string;
 	id?: string;
 	label: string;
 	source: string;

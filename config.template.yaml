@@ -8,14 +8,6 @@
 startDate: 2025-12-01
 
 # ============================================================================
-# TOPIC
-# ============================================================================
-# High-level description of what you're tracking. Used by the LLM
-# to understand context when extracting tags and summarizing content.
-topic: "Stock market, investing, and financial markets (equities, ETFs,
-  portfolio management, macro economics)"
-
-# ============================================================================
 # INDEXING CONFIGURATION
 # ============================================================================
 # Configure the LLM provider and workers for content processing (tagging, summarization).
@@ -58,155 +50,235 @@ indexing:
       apiKey: "env.NVIDIA_API_KEY"
 
 # ============================================================================
-# SOURCES
+# DOMAINS
 # ============================================================================
-# Configure which platforms and publishers/channels/accounts to track
-sources:
-  # YouTube channels
-  youtube:
-    # List of channel handles (with @ prefix) or channel IDs
-    publishers:
-      - "@everythingmoney"
-      - "@JosephCarlsonShow"
-      - "@BenFelixCSI"
-      - "@AswathDamodaranonValuation"
-      # Add more channels...
-
-      # How often to check for new videos (in minutes)
-    pollIntervalMinutes: 60
-
-  # Telegram channels
-  telegram:
-    # Credentials are read from environment variables (not stored in config):
-    #   TELEGRAM_API_ID   — API ID from my.telegram.org
-    #   TELEGRAM_API_HASH — API hash from my.telegram.org
-    # Session is stored in .trustmebro/telegram-session.txt (auto-saved after first auth).
-    # Run scripts/test.ts once to authenticate and generate the session file.
-    publishers: []
-    # Example (channel username with or without @):
-    # - "trend_gen"
-    # - "@cryptoinsights"
-
-    # Twitter accounts (coming soon)
-  twitter:
-    publishers: []
-    # Example:
-    # - "elonmusk"
-    # - "cathiedwood"
-    pollIntervalMinutes: 60
-
-# ============================================================================
-# TAG SCHEMA
-# ============================================================================
-# Define structured metadata that the LLM will extract from content.
-# Tags enable powerful filtering and analysis via ripgrep.
+# Each domain groups a set of sources (publishers) and a tag schema under
+# a common topic. Content is stored under data/social/{raw|processed}/{name}/.
 #
-# Each tag has:
-#   - name: The tag identifier (used in searches like "ticker=AAPL")
-#   - type: Data type (string, number, boolean, enum, or array variants)
-#   - description: Instructions for the LLM on what to extract
-#   - values: (enum types only) Allowed values
-tags:
-  # Stock tickers mentioned in the content
-  ticker:
-    type: string[] # Array of strings
-    description: "Canonical stock tickers, UPPERCASE only (e.g. AAPL, TSLA, MSFT, SPY)."
+# Domain name rules:
+#   - Lowercase kebab-case only (e.g. stock-market, crypto, ai-research)
+#   - Used as folder name on disk and as reference file name in skills
+domains:
+  # ---------------------------------------------------------------------------
+  # Domain 1: Stock Market & Investing
+  # ---------------------------------------------------------------------------
+  - name: stock-market
+    description: "Stock market, investing, and financial markets (equities, ETFs,
+      portfolio management, macro economics)"
 
-  # Company names mentioned
-  company:
-    type: string[]
-    description: "Canonical company names in snake_case (e.g. apple, tesla, microsoft)."
+    # -------------------------------------------------------------------------
+    # SOURCES
+    # -------------------------------------------------------------------------
+    # Configure which platforms and publishers/channels/accounts to track
+    sources:
+      # YouTube channels
+      youtube:
+        # List of channel handles (with @ prefix) or channel IDs
+        publishers:
+          - "@everythingmoney"
+          - "@JosephCarlsonShow"
+          - "@BenFelixCSI"
+          - "@AswathDamodaranonValuation"
+          # Add more channels...
 
-  # GICS sector classification
-  sector:
-    type: enum[] # Array of predefined values
-    description: "GICS sector classification for stocks/companies discussed."
-    values:
-      - technology
-      - healthcare
-      - financials
-      - consumer_discretionary
-      - consumer_staples
-      - energy
-      - utilities
-      - industrials
-      - materials
-      - real_estate
-      - communication_services
+        # How often to check for new videos (in minutes)
+        pollIntervalMinutes: 60
 
-  # Specific industry/sub-sector
-  industry:
-    type: string[]
-    description: "Specific industry/sub-sector in snake_case (e.g. semiconductors,
-      biotech, banking, ev_manufacturing)."
+      # Telegram channels
+      telegram:
+        # Credentials are read from environment variables (not stored in config):
+        #   TELEGRAM_API_ID   — API ID from my.telegram.org
+        #   TELEGRAM_API_HASH — API hash from my.telegram.org
+        # Session is stored in .trustmebro/telegram-session.txt (auto-saved after first auth).
+        # Run scripts/test.ts once to authenticate and generate the session file.
+        publishers: []
+        # Example (channel username with or without @):
+        # - "trend_gen"
+        # - "@cryptoinsights"
 
-  # Market cap category
-  market_cap:
-    type: enum[]
-    description: "Market capitalization category of the company."
-    values:
-      - mega_cap
-      - large_cap
-      - mid_cap
-      - small_cap
-      - micro_cap
+      # Twitter accounts (coming soon)
+      twitter:
+        publishers: []
+        # Example:
+        # - "elonmusk"
+        # - "cathiedwood"
+        pollIntervalMinutes: 60
 
-  # Investment style/approach
-  investment_style:
-    type: enum[]
-    description: "Investment approach or style discussed."
-    values:
-      - value
-      - growth
-      - dividend
-      - momentum
-      - index
-      - passive
-      - active
-      - day_trading
-      - swing_trading
-      - long_term_hold
+    # -------------------------------------------------------------------------
+    # TAG SCHEMA
+    # -------------------------------------------------------------------------
+    # Define structured metadata that the LLM will extract from content.
+    # Tags enable powerful filtering and analysis via ripgrep.
+    #
+    # Each tag has:
+    #   - name: The tag identifier (used in searches like "ticker=AAPL")
+    #   - type: Data type (string, number, boolean, enum, or array variants)
+    #   - description: Instructions for the LLM on what to extract
+    #   - values: (enum types only) Allowed values
+    tags:
+      # Stock tickers mentioned in the content
+      ticker:
+        type: string[] # Array of strings
+        description: "Canonical stock tickers, UPPERCASE only (e.g. AAPL, TSLA, MSFT, SPY)."
 
-  # Asset type
-  asset_type:
-    type: enum[]
-    description: "Type of financial instrument discussed."
-    values:
-      - stock
-      - index
-      - etf
-      - mutual_fund
-      - option
-      - bond
-      - reit
-      - commodity
-      - crypto
-      - cash
+      # Company names mentioned
+      company:
+        type: string[]
+        description: "Canonical company names in snake_case (e.g. apple, tesla, microsoft)."
 
-  # Investment narratives
-  narrative:
-    type: string[]
-    description: "Investment or market narratives in snake_case (e.g. ai_boom,
-      ev_transition, rate_cuts)."
+      # GICS sector classification
+      sector:
+        type: enum[] # Array of predefined values
+        description: "GICS sector classification for stocks/companies discussed."
+        values:
+          - technology
+          - healthcare
+          - financials
+          - consumer_discretionary
+          - consumer_staples
+          - energy
+          - utilities
+          - industrials
+          - materials
+          - real_estate
+          - communication_services
 
-  # Bullish or bearish sentiment
-  sentiment:
-    type: enum[]
-    description: "Directional stance on the stock/market. Omit if neutral or unclear."
-    values:
-      - bullish
-      - bearish
+      # Specific industry/sub-sector
+      industry:
+        type: string[]
+        description: "Specific industry/sub-sector in snake_case (e.g. semiconductors,
+          biotech, banking, ev_manufacturing)."
 
-  # Investment recommendation
-  recommendation:
-    type: enum[]
-    description: "Analyst or influencer recommendation type."
-    values:
-      - strong_buy
-      - buy
-      - hold
-      - sell
-      - strong_sell
+      # Market cap category
+      market_cap:
+        type: enum[]
+        description: "Market capitalization category of the company."
+        values:
+          - mega_cap
+          - large_cap
+          - mid_cap
+          - small_cap
+          - micro_cap
+
+      # Investment style/approach
+      investment_style:
+        type: enum[]
+        description: "Investment approach or style discussed."
+        values:
+          - value
+          - growth
+          - dividend
+          - momentum
+          - index
+          - passive
+          - active
+          - day_trading
+          - swing_trading
+          - long_term_hold
+
+      # Asset type
+      asset_type:
+        type: enum[]
+        description: "Type of financial instrument discussed."
+        values:
+          - stock
+          - index
+          - etf
+          - mutual_fund
+          - option
+          - bond
+          - reit
+          - commodity
+          - crypto
+          - cash
+
+      # Investment narratives
+      narrative:
+        type: string[]
+        description: "Investment or market narratives in snake_case (e.g. ai_boom,
+          ev_transition, rate_cuts)."
+
+      # Bullish or bearish sentiment
+      sentiment:
+        type: enum[]
+        description: "Directional stance on the stock/market. Omit if neutral or unclear."
+        values:
+          - bullish
+          - bearish
+
+      # Investment recommendation
+      recommendation:
+        type: enum[]
+        description: "Analyst or influencer recommendation type."
+        values:
+          - strong_buy
+          - buy
+          - hold
+          - sell
+          - strong_sell
+
+  # ---------------------------------------------------------------------------
+  # Domain 2: Example — Technology & AI (customize or remove)
+  # ---------------------------------------------------------------------------
+  - name: ai-research
+    description: "Artificial intelligence research, LLM developments, AI tools, and
+      machine learning breakthroughs"
+
+    sources:
+      youtube:
+        publishers:
+          - "@YannicKilcher"
+          - "@sentdex"
+        pollIntervalMinutes: 60
+
+      reddit:
+        publishers:
+          - "MachineLearning"
+          - "LocalLLaMA"
+        commentsCountThreshold: 10
+        sleepBetweenRequestsMs: 1000
+
+      telegram:
+        publishers: []
+
+      twitter:
+        publishers: []
+        pollIntervalMinutes: 60
+
+    tags:
+      model_name:
+        type: string[]
+        description: "AI model names mentioned (e.g. gpt-4o, claude-3, llama-3)."
+
+      organization:
+        type: string[]
+        description: "AI organizations or labs in snake_case (e.g. openai, anthropic, google_deepmind)."
+
+      capability:
+        type: enum[]
+        description: "AI capability or modality discussed."
+        values:
+          - text_generation
+          - image_generation
+          - code_generation
+          - reasoning
+          - multimodal
+          - fine_tuning
+          - rag
+          - agents
+          - embeddings
+
+      benchmark:
+        type: string[]
+        description: "AI benchmark or evaluation names in snake_case (e.g. mmlu, humaneval, swe_bench)."
+
+      sentiment:
+        type: enum[]
+        description: "Sentiment toward the AI development or technology. Omit if neutral."
+        values:
+          - positive
+          - negative
+          - cautious
 
 # ============================================================================
 # TAG TYPE REFERENCE
@@ -226,3 +298,4 @@ tags:
 #   - Use string/string[] for open-ended values (more flexible)
 #   - Array types allow multiple tags per document
 #   - Keep descriptions clear and specific for better LLM extraction
+

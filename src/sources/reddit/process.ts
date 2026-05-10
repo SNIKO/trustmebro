@@ -50,7 +50,7 @@ export async function processPost(args: {
 		const postData = await fetchPostWithComments(
 			subreddit,
 			postId,
-			context.config.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
+			context.domainConfig.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
 		);
 		if (!postData) {
 			return {
@@ -133,6 +133,7 @@ async function ingestPost(args: {
 	const content = contentParts.join("\n");
 
 	const result = await context.engine.add({
+		domain: context.domain,
 		id: post.id,
 		label: post.title,
 		source: "reddit",

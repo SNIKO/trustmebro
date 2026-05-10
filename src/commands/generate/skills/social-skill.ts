@@ -1,11 +1,61 @@
-import { DATA_DIR_NAME } from "../../../config.js";
 import { generateFrontmatter } from "./formatter";
-import type { SkillCreationOptions } from "./types.js";
+import type { AgentType, DomainSkillData, SkillCreationOptions } from "./types.js";
 
 export const SOCIAL_SKILL_NAME = "search-social";
 
-export function createSocialSkill(data: SkillCreationOptions): string {
-	const [field1, field2, field3, field4] = data.exampleFields;
+const SKILL_DESCRIPTION =
+	"Search and analyze indexed content from social sources: YouTube transcripts, Reddit discussions, and Telegram channels. Use this skill when you need information from any of these platforms to answer questions or conduct research.";
+
+/**
+ * Generate the main SKILL.md — a short index that lists all domains
+ * and links to their reference files.
+ */
+export function createSkillIndex(data: SkillCreationOptions): string {
+	const formatter = generateFrontmatter(SOCIAL_SKILL_NAME, SKILL_DESCRIPTION, data.agent);
+
+	const domainRows = data.domains
+		.map((d) => `| **${d.name}** | ${d.description} | [references/${d.name}.md](references/${d.name}.md) |`)
+		.join("\n");
+
+	return `${formatter}
+
+# Search Social — Skill Overview
+
+This skill enables efficient search across indexed social content organized by **domain**.
+Each domain has its own set of sources (YouTube, Reddit, Telegram) and tag schema.
+
+## Domains
+
+| Domain | Description | Reference |
+|--------|-------------|-----------|
+${domainRows}
+
+---
+
+## How to Use
+
+1. Identify the relevant domain for your question.
+2. Open the domain reference file listed above.
+3. Follow the search instructions and tag schema defined there.
+
+> **Tip:** If unsure which domain applies, start with a full-text search across all domains:
+> \`\`\`bash
+> rg -n -C 3 "your keyword" ${data.dataDir}/processed/
+> \`\`\`
+`;
+}
+
+/**
+ * Generate the per-domain reference file with full search instructions,
+ * tag schema, and ripgrep examples.
+ */
+export function createDomainReference(
+	domain: DomainSkillData,
+	agent: AgentType,
+): string {
+	const { processedPath, rawPath, tagReferenceList, exampleFields, publishers } = domain;
+
+	const [field1, field2, field3, field4] = exampleFields;
 
 	const fieldName1 = field1?.name ?? "field1";
 	const fieldName2 = field2?.name ?? "field2";
@@ -17,41 +67,20 @@ export function createSocialSkill(data: SkillCreationOptions): string {
 	const val3 = field3?.value ?? "value3";
 	const val4 = field4?.value ?? "value4";
 
-	const description = `Search and analyze indexed content from social sources: YouTube transcripts, Reddit discussions, and Telegram channels. Use this skill when you need information from any of these platforms to answer questions or conduct research.`;
-	const processedPath = `${DATA_DIR_NAME}/processed`;
-	const rawPath = `${DATA_DIR_NAME}/raw`;
-	const formatter = generateFrontmatter(
-		SOCIAL_SKILL_NAME,
-		description,
-		data.agent,
-	);
+	const publisherLines = Object.entries(publishers)
+		.filter(([, ids]) => ids && ids.length > 0)
+		.map(([platform, ids]) => `- **${platform}**: ${ids!.map((p) => `\`${p}\``).join(", ")}`)
+		.join("\n");
 
-	return `${formatter}
+	return `# Domain: ${domain.name}
 
-# Skill Overview
-
-This skill enables efficient search across indexed content from three social platforms:
-
-- **YouTube** — Video transcripts from indexed channels
-- **Reddit** — Posts and comment threads from indexed subreddits
-- **Telegram** — Messages from indexed channels and groups
-
-All content is optimized for **ripgrep-based retrieval** using:
-
-- Document-level metadata in YAML frontmatter
-- Chunk-level inline tags for granular filtering
-- Small, localized context windows for precise extraction
+> ${domain.description}
 
 ---
 
-## Content Model
+## Indexed Publishers
 
-Content from all platforms is processed through the same pipeline:
-
-1. **Ingested** — Raw content is captured and stored per platform.
-2. **Chunked** — Content is split into semantic chunks (paragraphs, sections, threads).
-3. **Enriched** — Each chunk is tagged with structured metadata.
-4. **Stored** — Final output is written as grep-friendly Markdown files.
+${publisherLines || "_No publishers configured._"}
 
 ---
 
@@ -127,7 +156,7 @@ Content of the second chunk continues here with additional details.
 
 Use only the following tag fields. Do not invent new tag names.
 
-${data.tagReferenceList}
+${tagReferenceList}
 
 ---
 
@@ -142,7 +171,7 @@ ${data.tagReferenceList}
 Use glob filters to shrink the search surface before scanning content. Content is organized by **platform**, **publisher/subreddit/channel**, and **date**.
 
 \`\`\`bash
-# Search across all platforms
+# Search across all platforms for this domain
 rg -F "query" ${processedPath}/
 
 # Search a specific platform
