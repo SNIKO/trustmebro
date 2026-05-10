@@ -1,12 +1,4 @@
-import {
-	cancel,
-	intro,
-	isCancel,
-	log,
-	outro,
-	select,
-	spinner,
-} from "@clack/prompts";
+import { cancel, intro, isCancel, log, outro, select, spinner } from "@clack/prompts";
 import { buildCommand } from "@stricli/core";
 import { type Config, loadConfig } from "../../../config.js";
 import { generateSkills } from "./generate-skills.js";
@@ -77,7 +69,6 @@ export const skillsCommand = buildCommand({
 		positional: { kind: "tuple", parameters: [] },
 	},
 	docs: {
-		brief:
-			"Generate skills for AI agents to effectively navigate and utilize the fetched data.",
+		brief: "Generate skills for AI agents to effectively navigate and utilize the fetched data.",
 	},
 });

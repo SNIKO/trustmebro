@@ -36,10 +36,7 @@ async function loadSession(workspacePath: string): Promise<string> {
 	return (await fs.readFile(filePath, "utf8")).trim();
 }
 
-async function saveSession(
-	workspacePath: string,
-	session: string,
-): Promise<void> {
+async function saveSession(workspacePath: string, session: string): Promise<void> {
 	const dir = path.join(workspacePath, ".trustmebro");
 	await fs.mkdir(dir, { recursive: true });
 	await fs.writeFile(path.join(dir, SESSION_FILE), session, "utf8");
@@ -61,20 +58,11 @@ function resolveCredentials(sessionString: string): {
 	return { apiId, apiHash, sessionString };
 }
 
-async function createClient(creds: {
-	apiId: number;
-	apiHash: string;
-	sessionString: string;
-}): Promise<TelegramClient> {
-	const client = new TelegramClient(
-		new StringSession(creds.sessionString),
-		creds.apiId,
-		creds.apiHash,
-		{
-			connectionRetries: 5,
-			baseLogger: new Logger(LogLevel.NONE),
-		},
-	);
+async function createClient(creds: { apiId: number; apiHash: string; sessionString: string }): Promise<TelegramClient> {
+	const client = new TelegramClient(new StringSession(creds.sessionString), creds.apiId, creds.apiHash, {
+		connectionRetries: 5,
+		baseLogger: new Logger(LogLevel.NONE),
+	});
 
 	await client.connect();
 
@@ -105,20 +93,13 @@ async function authenticateTelegram(workspacePath: string): Promise<boolean> {
 
 	try {
 		const stringSession = new StringSession("");
-		const client = new TelegramClient(
-			stringSession,
-			creds.apiId,
-			creds.apiHash,
-			{
-				connectionRetries: 5,
-			},
-		);
+		const client = new TelegramClient(stringSession, creds.apiId, creds.apiHash, {
+			connectionRetries: 5,
+		});
 
 		await client.start({
-			phoneNumber: async () =>
-				await input.text("Enter your phone number (with country code): "),
-			password: async () =>
-				await input.text("Enter your 2FA password (if any): "),
+			phoneNumber: async () => await input.text("Enter your phone number (with country code): "),
+			password: async () => await input.text("Enter your 2FA password (if any): "),
 			phoneCode: async () => await input.text("Enter the code you received: "),
 			onError: (err) => {
 				if (err.message !== "TIMEOUT") throw err;
@@ -151,10 +132,7 @@ function extractPhotos(message: Api.Message): Api.Photo[] {
 
 	if (message.media instanceof Api.MessageMediaWebPage) {
 		const media = message.media as Api.MessageMediaWebPage;
-		if (
-			media.webpage instanceof Api.WebPage &&
-			media.webpage.photo instanceof Api.Photo
-		) {
+		if (media.webpage instanceof Api.WebPage && media.webpage.photo instanceof Api.Photo) {
 			photos.push(media.webpage.photo);
 		}
 	}
@@ -175,9 +153,7 @@ async function downloadImage(
 		const filename = `telegram-${messageId}-${imageIndex}.jpg`;
 		const filePath = path.join(tempDir, filename);
 
-		const buffer = await client.downloadMedia(
-			photo as unknown as Api.TypeMessageMedia,
-		);
+		const buffer = await client.downloadMedia(photo as unknown as Api.TypeMessageMedia);
 		if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
 			return null;
 		}
@@ -246,10 +222,7 @@ async function fetchMessages(
 	return results;
 }
 
-async function getChannelSubscriberCount(
-	client: TelegramClient,
-	channelId: string,
-): Promise<number | null> {
+async function getChannelSubscriberCount(client: TelegramClient, channelId: string): Promise<number | null> {
 	try {
 		const fullChannel = await client.invoke(
 			new Api.channels.GetFullChannel({
@@ -267,11 +240,7 @@ async function getChannelSubscriberCount(
 	}
 }
 
-async function processImagesWithLLM(
-	context: SourceContext,
-	postText: string,
-	images: ImageInfo[],
-): Promise<string> {
+async function processImagesWithLLM(context: SourceContext, postText: string, images: ImageInfo[]): Promise<string> {
 	if (images.length === 0) return "";
 
 	const imageData = await Promise.all(
@@ -287,9 +256,7 @@ async function processImagesWithLLM(
 		}),
 	);
 
-	const validImageData = imageData.filter(
-		(data): data is string => data !== null,
-	);
+	const validImageData = imageData.filter((data): data is string => data !== null);
 
 	if (validImageData.length === 0) return "";
 
@@ -329,20 +296,15 @@ async function processMessage(
 	if (publishedAt < context.domainConfig.startDate) return;
 
 	const text = msg.message?.trim() ?? "";
-	const title =
-		text.slice(0, 80).replace(/\n/g, " ").trim() || `Message ${msg.id}`;
+	const title = text.slice(0, 80).replace(/\n/g, " ").trim() || `Message ${msg.id}`;
 	const images = msg.images ?? [];
 
 	try {
 		let imageAnalysis = "";
 		if (images.length > 0) {
-			log.debug(
-				`Processing ${images.length} images for message '${title}' from @${channelId}`,
-			);
+			log.debug(`Processing ${images.length} images for message '${title}' from @${channelId}`);
 			imageAnalysis = await processImagesWithLLM(context, text, images);
-			log.debug(
-				`Image analysis complete for message '${title}' from @${channelId}: ${imageAnalysis.length} chars`,
-			);
+			log.debug(`Image analysis complete for message '${title}' from @${channelId}: ${imageAnalysis.length} chars`);
 			for (const img of images) {
 				try {
 					await fs.unlink(img.path);
@@ -352,14 +314,10 @@ async function processMessage(
 			}
 		}
 
-		const finalContent = imageAnalysis
-			? `${text}\n\n[Image Analysis: ${imageAnalysis}]`
-			: text;
+		const finalContent = imageAnalysis ? `${text}\n\n[Image Analysis: ${imageAnalysis}]` : text;
 
 		if (finalContent.length < minLength) {
-			log.debug(
-				`Ignoring message '${title}' from @${channelId} (${finalContent.length} chars)`,
-			);
+			log.debug(`Ignoring message '${title}' from @${channelId} (${finalContent.length} chars)`);
 			return;
 		}
 
@@ -382,9 +340,7 @@ async function processMessage(
 				messageId: msg.id,
 				hasImages: images.length > 0,
 				imageCount: images.length,
-				...(subscriberCount !== null && subscriberCount !== undefined
-					? { subscriberCount }
-					: {}),
+				...(subscriberCount !== null && subscriberCount !== undefined ? { subscriberCount } : {}),
 			},
 		});
 
@@ -392,14 +348,10 @@ async function processMessage(
 			log.debug(`Indexed message: '${label}' from @${channelId}`);
 			await state.markIndexed(channelId, msg.id);
 		} else {
-			log.error(
-				`Failed to index message '${label}' from @${channelId}: ${result.message}`,
-			);
+			log.error(`Failed to index message '${label}' from @${channelId}: ${result.message}`);
 		}
 	} catch (error) {
-		log.error(
-			`Error processing message '${title}' from @${channelId}: ${error}`,
-		);
+		log.error(`Error processing message '${title}' from @${channelId}: ${error}`);
 	}
 }
 
@@ -426,45 +378,25 @@ export function createTelegramSource(): Source {
 				const updatedSession = (client.session as StringSession).save();
 				await saveSession(context.workspacePath, updatedSession);
 
-				const subscriberCount = await getChannelSubscriberCount(
-					client,
-					publisherId,
-				);
+				const subscriberCount = await getChannelSubscriberCount(client, publisherId);
 
-				const messages = await fetchMessages(
-					client,
-					publisherId,
-					context.domainConfig.startDate,
-					lastMessageId,
-				);
+				const messages = await fetchMessages(client, publisherId, context.domainConfig.startDate, lastMessageId);
 
 				if (messages.length === 0) {
 					log.info(`No new messages for @${publisherId}`);
 					return;
 				}
 
-				log.info(
-					`Fetched ${messages.length} new messages from @${publisherId}`,
-				);
+				log.info(`Fetched ${messages.length} new messages from @${publisherId}`);
 
 				const ordered = messages.slice().sort((a, b) => a.id - b.id);
-				const minLength =
-					context.domainConfig.sources.telegram?.minMessageLength ?? 200;
+				const minLength = context.domainConfig.sources.telegram?.minMessageLength ?? 200;
 
 				for (const msg of ordered) {
 					try {
-						await processMessage(
-							context,
-							publisherId,
-							msg,
-							state,
-							subscriberCount,
-							minLength,
-						);
+						await processMessage(context, publisherId, msg, state, subscriberCount, minLength);
 						indexedCount++;
-						log.info(
-							`Processed ${indexedCount}/${messages.length} messages for @${publisherId}`,
-						);
+						log.info(`Processed ${indexedCount}/${messages.length} messages for @${publisherId}`);
 					} catch (error) {
 						log.error(
 							`Failed to index message for @${publisherId}: ${error instanceof Error ? error.message : String(error)}`,

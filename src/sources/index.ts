@@ -9,7 +9,5 @@ export function buildSources(): Source[] {
 	const reddit = createRedditSource();
 	const telegram = createTelegramSource();
 
-	return [youtube, reddit, telegram].filter(
-		(source): source is Source => source !== null,
-	);
+	return [youtube, reddit, telegram].filter((source): source is Source => source !== null);
 }

@@ -17,8 +17,7 @@ export const authCommand = buildCommand({
 				kind: "parsed",
 				parse: String,
 				optional: true,
-				brief:
-					"Path to the workspace directory where artifacts are stored. It must contain a config.yaml file.",
+				brief: "Path to the workspace directory where artifacts are stored. It must contain a config.yaml file.",
 			},
 			source: {
 				kind: "enum",
@@ -30,7 +29,6 @@ export const authCommand = buildCommand({
 	},
 	docs: {
 		brief: "Authenticate with configured sources",
-		fullDescription:
-			"Runs authentication for sources that require login. Use --source to limit to one provider.",
+		fullDescription: "Runs authentication for sources that require login. Use --source to limit to one provider.",
 	},
 });

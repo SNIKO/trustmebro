@@ -104,15 +104,7 @@ async function ingestVideo(args: {
 	details: YtDlpVideo;
 	publishedAt: Date;
 }): Promise<boolean> {
-	const {
-		context,
-		publisherId,
-		videoId,
-		videoUrl,
-		transcript,
-		details,
-		publishedAt,
-	} = args;
+	const { context, publisherId, videoId, videoUrl, transcript, details, publishedAt } = args;
 
 	const result = await context.engine.add({
 		domain: context.domain,

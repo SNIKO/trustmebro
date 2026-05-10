@@ -10,11 +10,7 @@ export class TelegramState {
 	private state: State = {};
 
 	constructor(workspacePath: string) {
-		this.filePath = path.join(
-			workspacePath,
-			".trustmebro",
-			"index-telegram.yaml",
-		);
+		this.filePath = path.join(workspacePath, ".trustmebro", "index-telegram.yaml");
 	}
 
 	private key(channelId: string): string {

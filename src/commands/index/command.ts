@@ -12,8 +12,7 @@ export const indexCommand = buildCommand({
 				kind: "parsed",
 				parse: String,
 				optional: true,
-				brief:
-					"Path to the workspace directory where artifacts are stored. It must contain a config.yaml file.",
+				brief: "Path to the workspace directory where artifacts are stored. It must contain a config.yaml file.",
 			},
 			source: {
 				kind: "enum",

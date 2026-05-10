@@ -59,11 +59,7 @@ export class DualFileState<TMain, TSkipped> {
 		skippedSchema: z.ZodSchema<TSkipped>,
 	) {
 		this.mainFilePath = path.join(workspacePath, ".trustmebro", mainFileName);
-		this.skippedFilePath = path.join(
-			workspacePath,
-			".trustmebro",
-			skippedFileName,
-		);
+		this.skippedFilePath = path.join(workspacePath, ".trustmebro", skippedFileName);
 		this.mainSchema = mainSchema;
 		this.skippedSchema = skippedSchema;
 		this.mainState = {} as TMain;
@@ -72,21 +68,21 @@ export class DualFileState<TMain, TSkipped> {
 
 	async load(): Promise<void> {
 		// Load main state
-		if (!existsSync(this.mainFilePath)) {
-			this.mainState = {} as TMain;
-		} else {
+		if (existsSync(this.mainFilePath)) {
 			const raw = await readFile(this.mainFilePath, "utf8");
 			const parsed = YAML.parse(raw);
 			this.mainState = this.mainSchema.parse(parsed);
+		} else {
+			this.mainState = {} as TMain;
 		}
 
 		// Load skipped state
-		if (!existsSync(this.skippedFilePath)) {
-			this.skippedState = {} as TSkipped;
-		} else {
+		if (existsSync(this.skippedFilePath)) {
 			const raw = await readFile(this.skippedFilePath, "utf8");
 			const parsed = YAML.parse(raw);
 			this.skippedState = this.skippedSchema.parse(parsed);
+		} else {
+			this.skippedState = {} as TSkipped;
 		}
 	}
 

@@ -1,9 +1,6 @@
 export type DocumentRef = string;
 export type Tags = Record<string, unknown>;
-export type SourceCounts = Record<
-	string,
-	{ fetched: number; processed: number }
->;
+export type SourceCounts = Record<string, { fetched: number; processed: number }>;
 
 export type AddInput = {
 	domain: string;
@@ -17,6 +14,4 @@ export type AddInput = {
 	tags: Tags;
 };
 
-export type AddResult =
-	| { success: true; ref: DocumentRef }
-	| { success: false; message: string };
+export type AddResult = { success: true; ref: DocumentRef } | { success: false; message: string };

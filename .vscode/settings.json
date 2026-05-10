@@ -6,6 +6,7 @@
 	// Keep files tidy
 	"files.insertFinalNewline": true,
 	"files.trimTrailingWhitespace": true,
+	"files.eol": "\n",
 
 	// Format with Biome
 	"editor.formatOnSave": true,
@@ -36,5 +37,8 @@
 	},
 
 	// Prefer the workspace TypeScript version
-	"typescript.tsdk": "node_modules/typescript/lib"
+	"js/ts.tsdk.path": "node_modules/typescript/lib",
+
+	// Surface all TypeScript errors across the project, not just open files
+	"js/ts.tsserver.experimental.enableProjectDiagnostics": true
 }

@@ -82,27 +82,15 @@ export function createLogger(context: string): Logger {
 		publisherStart(publisher: string, total: number): void {
 			log("info", context, `Fetching ${total} items for ${publisher}`);
 		},
-		publisherComplete(
-			publisher: string,
-			processed: number,
-			errors: number,
-		): void {
+		publisherComplete(publisher: string, processed: number, errors: number): void {
 			if (errors === 0) {
 				log("info", context, `Processed ${processed} items for ${publisher}`);
 			} else {
-				log(
-					"warn",
-					context,
-					`Processed ${processed} items with ${errors} errors for ${publisher}`,
-				);
+				log("warn", context, `Processed ${processed} items with ${errors} errors for ${publisher}`);
 			}
 		},
 		processProgress(publisher: string, current: number, total: number): void {
-			log(
-				"info",
-				context,
-				`Processing ${current}/${total} items for ${publisher}`,
-			);
+			log("info", context, `Processing ${current}/${total} items for ${publisher}`);
 		},
 	};
 }

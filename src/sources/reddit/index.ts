@@ -31,9 +31,7 @@ export function createRedditSource(): Source {
 					? new Date(latestFetched - OVERLAP_MS)
 					: context.domainConfig.startDate;
 
-			log.info(
-				`Fetching r/${publisherId} posts since ${cutoffDate.toISOString().split("T")[0]}`,
-			);
+			log.info(`Fetching r/${publisherId} posts since ${cutoffDate.toISOString().split("T")[0]}`);
 
 			const fetchStart = Date.now();
 			const postsToReindex: RedditPost[] = [];
@@ -67,19 +65,13 @@ export function createRedditSource(): Source {
 						if (result.status === "indexed") {
 							processedCount++;
 							if (processedCount % 10 === 0) {
-								log.info(
-									`Processed ${processedCount} posts for r/${publisherId}`,
-								);
+								log.info(`Processed ${processedCount} posts for r/${publisherId}`);
 							}
 						} else if (result.status === "error") {
 							errorCount++;
-							log.error(
-								`Failed to index post "${post.title}" for r/${publisherId}: ${result.reason}`,
-							);
+							log.error(`Failed to index post "${post.title}" for r/${publisherId}: ${result.reason}`);
 						}
-					} else if (
-						state.shouldReindex(publisherId, post.id, post.num_comments)
-					) {
+					} else if (state.shouldReindex(publisherId, post.id, post.num_comments)) {
 						postsToReindex.push(post);
 					}
 				}
@@ -114,16 +106,12 @@ export function createRedditSource(): Source {
 						processedCount++;
 					} else if (result.status === "error") {
 						errorCount++;
-						log.error(
-							`Failed to re-index post "${post.title}" for r/${publisherId}: ${result.reason}`,
-						);
+						log.error(`Failed to re-index post "${post.title}" for r/${publisherId}: ${result.reason}`);
 					}
 				}
 			}
 
-			log.info(
-				`Completed r/${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`,
-			);
+			log.info(`Completed r/${publisherId} (${processedCount} items${errorCount > 0 ? `, ${errorCount} errors` : ""})`);
 		},
 	};
 }

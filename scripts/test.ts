@@ -18,8 +18,7 @@ const phoneNumber = "+61466115828"; // <-- including country code, e.g. +1 for U
 	// 🔐 Login flow
 	await client.start({
 		phoneNumber: async () => phoneNumber,
-		password: async () =>
-			await input.text("Enter your 2FA password (if any): "),
+		password: async () => await input.text("Enter your 2FA password (if any): "),
 		phoneCode: async () => await input.text("Enter the code you received: "),
 		onError: (err) => {
 			if (err.message !== "TIMEOUT") throw err;
@@ -30,7 +29,7 @@ const phoneNumber = "+61466115828"; // <-- including country code, e.g. +1 for U
 	const channel = await client.getEntity("trend_gen"); // try any public channel username
 
 	// 📥 Fetch messages
-	const _messages = await client.getMessages(channel, {
+	await client.getMessages(channel, {
 		limit: 20,
 	});
 })();

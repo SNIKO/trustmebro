@@ -1,38 +1,18 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type {
-	Config,
-	ConfigTag,
-	ConfigTags,
-	DomainConfig,
-} from "../../../config.js";
+import type { Config, ConfigTag, ConfigTags, DomainConfig } from "../../../config.js";
 import { DATA_DIR_NAME } from "../../../config.js";
-import {
-	createDomainReference,
-	createSkillIndex,
-	SOCIAL_SKILL_NAME,
-} from "./social-skill.js";
-import type {
-	AgentType,
-	DomainSkillData,
-	SkillCreationOptions,
-} from "./types.js";
+import { createDomainReference, createSkillIndex, SOCIAL_SKILL_NAME } from "./social-skill.js";
+import type { AgentType, DomainSkillData, SkillCreationOptions } from "./types.js";
 
 /**
  * Select example fields from the tag schema, prioritizing fields with enum values.
  */
-function buildExampleFields(
-	tags: ConfigTags,
-	count: number,
-): Array<{ name: string; value: string }> {
+function buildExampleFields(tags: ConfigTags, count: number): Array<{ name: string; value: string }> {
 	const getValue = (tagName: string, t: ConfigTag) =>
-		t.type === "enum" || t.type === "enum[]"
-			? (t.values[0] ?? `${tagName}_val_1`)
-			: `${tagName}_val_1`;
+		t.type === "enum" || t.type === "enum[]" ? (t.values[0] ?? `${tagName}_val_1`) : `${tagName}_val_1`;
 
-	const entries = Object.entries(tags).sort(
-		([, a], [, b]) => ("values" in b ? 1 : 0) - ("values" in a ? 1 : 0),
-	);
+	const entries = Object.entries(tags).sort(([, a], [, b]) => ("values" in b ? 1 : 0) - ("values" in a ? 1 : 0));
 
 	return entries.slice(0, count).map(([name, field]) => ({
 		name,
@@ -45,8 +25,7 @@ function buildTagReferenceList(tags: ConfigTags): string {
 		.map(([name, field]) => {
 			const typeDisplay = field.type;
 			const enumSuffix =
-				(field.type === "enum" || field.type === "enum[]") &&
-				field.values.length > 0
+				(field.type === "enum" || field.type === "enum[]") && field.values.length > 0
 					? ` — values: \`${field.values.join("`, `")}\``
 					: "";
 			return `- \`${name}\` (*${typeDisplay}*)${enumSuffix}`;
@@ -54,9 +33,7 @@ function buildTagReferenceList(tags: ConfigTags): string {
 		.join("\n");
 }
 
-function buildPublishers(
-	domain: DomainConfig,
-): Partial<Record<string, string[]>> {
+function buildPublishers(domain: DomainConfig): Partial<Record<string, string[]>> {
 	const result: Partial<Record<string, string[]>> = {};
 	for (const [platformId, cfg] of Object.entries(domain.sources)) {
 		if (cfg && cfg.publishers.length > 0) {
@@ -66,10 +43,7 @@ function buildPublishers(
 	return result;
 }
 
-function buildDomainSkillData(
-	domain: DomainConfig,
-	dataDir: string,
-): DomainSkillData {
+function buildDomainSkillData(domain: DomainConfig, dataDir: string): DomainSkillData {
 	const processedPath = `${dataDir}/processed/${domain.name}`;
 	const rawPath = `${dataDir}/raw/${domain.name}`;
 	return {
@@ -121,16 +95,11 @@ async function saveFile(filePath: string, content: string): Promise<void> {
  * Generate all skill files (index + per-domain references) for the given agent type.
  * Returns the list of written file paths.
  */
-export async function generateSkills(
-	config: Config,
-	agent: AgentType,
-): Promise<string[]> {
+export async function generateSkills(config: Config, agent: AgentType): Promise<string[]> {
 	const dataDir = DATA_DIR_NAME;
 	const skillDir = getSkillDir(agent);
 
-	const domainSkillData = config.domains.map((d) =>
-		buildDomainSkillData(d, dataDir),
-	);
+	const domainSkillData = config.domains.map((d) => buildDomainSkillData(d, dataDir));
 
 	const options: SkillCreationOptions = {
 		agent,

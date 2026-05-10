@@ -4,12 +4,7 @@ import { z } from "zod";
 
 export const DATA_DIR_NAME = "data/social";
 
-export const sourceIdSchema = z.enum([
-	"youtube",
-	"telegram",
-	"twitter",
-	"reddit",
-]);
+export const sourceIdSchema = z.enum(["youtube", "telegram", "twitter", "reddit"]);
 export type SourceId = z.infer<typeof sourceIdSchema>;
 
 const configTagSchema = z.discriminatedUnion("type", [
@@ -19,14 +14,7 @@ const configTagSchema = z.discriminatedUnion("type", [
 		values: z.array(z.string()),
 	}),
 	z.object({
-		type: z.enum([
-			"string",
-			"number",
-			"boolean",
-			"string[]",
-			"number[]",
-			"date",
-		]),
+		type: z.enum(["string", "number", "boolean", "string[]", "number[]", "date"]),
 		description: z.string().optional(),
 	}),
 ]);
@@ -46,12 +34,7 @@ const publisherConfigSchema = z.object({
 const telegramConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
 	/** Minimum message length (characters) to index. Messages shorter than this with no images are ignored. */
-	minMessageLength: z.coerce
-		.number()
-		.int()
-		.nonnegative()
-		.optional()
-		.default(200),
+	minMessageLength: z.coerce.number().int().nonnegative().optional().default(200),
 });
 
 export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
@@ -59,18 +42,8 @@ export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
 const redditConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
 	/** Minimum number of comments required for a post to be indexed */
-	commentsCountThreshold: z.coerce
-		.number()
-		.int()
-		.nonnegative()
-		.optional()
-		.default(0),
-	sleepBetweenRequestsMs: z.coerce
-		.number()
-		.int()
-		.nonnegative()
-		.optional()
-		.default(1000),
+	commentsCountThreshold: z.coerce.number().int().nonnegative().optional().default(0),
+	sleepBetweenRequestsMs: z.coerce.number().int().nonnegative().optional().default(1000),
 });
 
 export type RedditConfig = z.infer<typeof redditConfigSchema>;
@@ -97,12 +70,7 @@ const domainSourcesSchema = z.object({
 
 const domainConfigSchema = z.object({
 	/** Slug used as the folder name for storage and reference files (kebab-case). */
-	name: z
-		.string()
-		.regex(
-			/^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-			"Domain name must be kebab-case (e.g. stock-market)",
-		),
+	name: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Domain name must be kebab-case (e.g. stock-market)"),
 	description: z.string(),
 	/** Fetch content published on or after this date. */
 	startDate: z.coerce.date(),
@@ -148,10 +116,7 @@ function normalizeDomainSources(domain: DomainConfig): DomainConfig {
 				key,
 				{
 					...sourceConfig,
-					publishers: normalizePublishers(
-						key as SourceId,
-						sourceConfig.publishers,
-					),
+					publishers: normalizePublishers(key as SourceId, sourceConfig.publishers),
 				},
 			];
 		}),

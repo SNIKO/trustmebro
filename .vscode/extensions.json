@@ -1,3 +1,7 @@
 {
-	"recommendations": ["biomejs.biome"]
+	"recommendations": [
+		"biomejs.biome",
+		// Inline display of errors/warnings — makes lint + type errors visible without opening Problems panel
+		"usernamehw.errorlens"
+	]
 }

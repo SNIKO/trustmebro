@@ -1,16 +1,8 @@
 import { createLogger } from "../../utils/logger.js";
 import type { SourceContext } from "../types.js";
-import {
-	buildPostUrl,
-	fetchPostWithComments,
-	formatCommentsAsText,
-} from "./fetch.js";
+import { buildPostUrl, fetchPostWithComments, formatCommentsAsText } from "./fetch.js";
 import type { RedditState } from "./state.js";
-import type {
-	PostRunResult,
-	RedditPost,
-	RedditPostWithComments,
-} from "./types.js";
+import type { PostRunResult, RedditPost, RedditPostWithComments } from "./types.js";
 
 const log = createLogger("reddit");
 
@@ -77,12 +69,7 @@ export async function processPost(args: {
 			};
 		}
 
-		await state.markIndexed(
-			subreddit,
-			postId,
-			post.num_comments,
-			post.created_utc * 1000,
-		);
+		await state.markIndexed(subreddit, postId, post.num_comments, post.created_utc * 1000);
 
 		return {
 			postId,

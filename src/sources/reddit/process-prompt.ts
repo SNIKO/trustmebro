@@ -1,7 +1,4 @@
-export function getRedditProcessingPrompt(
-	domain: string,
-	tagSchema: string,
-): string {
+export function getRedditProcessingPrompt(domain: string, tagSchema: string): string {
 	return `# INSTRUCTIONS
 
 Clean, chunk, and tag Reddit content for **grep-based search** in the domain: ${domain}.

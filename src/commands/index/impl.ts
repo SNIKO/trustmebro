@@ -1,17 +1,8 @@
 import path from "node:path";
 import type { LanguageModel } from "ai";
 import YAML from "yaml";
-import {
-	type Config,
-	DATA_DIR_NAME,
-	type DomainConfig,
-	loadConfig,
-	type SourceId,
-} from "../../config.js";
-import {
-	type ContentEngineOptions,
-	createContentEngine,
-} from "../../content/index.js";
+import { type Config, DATA_DIR_NAME, type DomainConfig, loadConfig, type SourceId } from "../../config.js";
+import { type ContentEngineOptions, createContentEngine } from "../../content/index.js";
 import type { DomainEntry } from "../../content/processor.js";
 import { buildSources } from "../../sources/index.js";
 import type { Source, SourceContext } from "../../sources/types.js";
@@ -37,8 +28,7 @@ type SourceToProcess = { source: Source; publisherIds: string[] };
 function resolveEnvVars(obj: Record<string, unknown>): Record<string, unknown> {
 	return Object.fromEntries(
 		Object.entries(obj).map(([key, value]) => {
-			if (typeof value === "string" && value.startsWith("env."))
-				return [key, process.env[value.slice(4)]];
+			if (typeof value === "string" && value.startsWith("env.")) return [key, process.env[value.slice(4)]];
 			if (typeof value === "object" && value !== null && !Array.isArray(value))
 				return [key, resolveEnvVars(value as Record<string, unknown>)];
 			return [key, value];
@@ -49,13 +39,9 @@ function resolveEnvVars(obj: Record<string, unknown>): Record<string, unknown> {
 async function resolveModel(config: Config): Promise<LanguageModel> {
 	const { provider, model: modelName, options } = config.indexing.model;
 	const mod = await import(provider);
-	const entry = Object.entries(mod).find(
-		([key, val]) => /^create[A-Z]/.test(key) && typeof val === "function",
-	);
+	const entry = Object.entries(mod).find(([key, val]) => /^create[A-Z]/.test(key) && typeof val === "function");
 	if (!entry) throw new Error(`No provider factory found in ${provider}`);
-	const factory = entry[1] as (
-		opts: Record<string, unknown>,
-	) => (model: string) => LanguageModel;
+	const factory = entry[1] as (opts: Record<string, unknown>) => (model: string) => LanguageModel;
 	return factory(options ? resolveEnvVars(options) : {})(modelName);
 }
 
@@ -64,8 +50,7 @@ function buildTagSchema(domain: DomainConfig): TagSchema {
 		name,
 		type: entry.type,
 		description: entry.description ?? "",
-		enumValues:
-			entry.type === "enum" || entry.type === "enum[]" ? entry.values : null,
+		enumValues: entry.type === "enum" || entry.type === "enum[]" ? entry.values : null,
 	}));
 }
 
@@ -79,29 +64,21 @@ function buildDomainEntry(domain: DomainConfig): DomainEntry {
 	};
 }
 
-function buildCustomPrompts(
-	sources: Source[],
-	domains: DomainConfig[],
-): Record<string, string> {
+function buildCustomPrompts(sources: Source[], domains: DomainConfig[]): Record<string, string> {
 	const result: Record<string, string> = {};
 	for (const domain of domains) {
 		const tagSchema = buildTagSchema(domain);
 		const tagSchemaJson = JSON.stringify(tagSchema, null, 2);
 		for (const source of sources) {
 			if (source.getProcessingPrompt) {
-				result[`${domain.name}/${source.sourceId}`] =
-					source.getProcessingPrompt(domain.description, tagSchemaJson);
+				result[`${domain.name}/${source.sourceId}`] = source.getProcessingPrompt(domain.description, tagSchemaJson);
 			}
 		}
 	}
 	return result;
 }
 
-function filterDomainSources(
-	sources: Source[],
-	domain: DomainConfig,
-	flags: IndexCommandFlags,
-): SourceToProcess[] {
+function filterDomainSources(sources: Source[], domain: DomainConfig, flags: IndexCommandFlags): SourceToProcess[] {
 	const result: SourceToProcess[] = [];
 	for (const source of sources) {
 		if (flags.source && source.sourceId !== flags.source) continue;
@@ -109,9 +86,7 @@ function filterDomainSources(
 		const sourceConfig = domain.sources[source.sourceId];
 		if (!sourceConfig) continue;
 
-		const publisherIds = flags.publisher
-			? [flags.publisher]
-			: sourceConfig.publishers;
+		const publisherIds = flags.publisher ? [flags.publisher] : sourceConfig.publishers;
 		if (publisherIds.length > 0) {
 			result.push({ source, publisherIds });
 		}
@@ -146,9 +121,7 @@ async function runSource(
 		} catch (error) {
 			errors.push({ sourceId: source.sourceId, publisherId, error });
 			sourceLogger.error(
-				`Error processing '${publisherId}': ${
-					error instanceof Error ? error.message : String(error)
-				}`,
+				`Error processing '${publisherId}': ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
 	}
@@ -158,10 +131,7 @@ async function runSource(
 	return { sourceId: source.sourceId, errors };
 }
 
-async function checkAuthentication(
-	sources: Source[],
-	workspacePath: string,
-): Promise<void> {
+async function checkAuthentication(sources: Source[], workspacePath: string): Promise<void> {
 	for (const source of sources) {
 		if (source.authenticate) {
 			const isAuthenticated = await source.authenticate(workspacePath);
@@ -192,23 +162,16 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 		const contentEngine = await createContentEngine(engineOptions);
 
 		// Collect all sources across all domains for auth check
-		const allSourcesToProcess = config.domains.flatMap((domain) =>
-			filterDomainSources(sources, domain, flags),
-		);
+		const allSourcesToProcess = config.domains.flatMap((domain) => filterDomainSources(sources, domain, flags));
 
 		if (allSourcesToProcess.length === 0) {
 			log.warn("No sources configured.");
 			return;
 		}
 
-		log.info(
-			`Found ${config.domains.length} domain(s) with ${allSourcesToProcess.length} source run(s) configured.`,
-		);
+		log.info(`Found ${config.domains.length} domain(s) with ${allSourcesToProcess.length} source run(s) configured.`);
 
-		await checkAuthentication(
-			[...new Set(allSourcesToProcess.map((s) => s.source))],
-			workspacePath,
-		);
+		await checkAuthentication([...new Set(allSourcesToProcess.map((s) => s.source))], workspacePath);
 
 		await contentEngine.start();
 
@@ -222,9 +185,7 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			const domainSources = filterDomainSources(sources, domain, flags);
 			if (domainSources.length === 0) continue;
 
-			log.info(
-				`Indexing domain '${domain.name}' (${domainSources.length} source(s))`,
-			);
+			log.info(`Indexing domain '${domain.name}' (${domainSources.length} source(s))`);
 
 			const context: SourceContext = {
 				config,
@@ -236,9 +197,7 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 			};
 
 			const results = await Promise.all(
-				domainSources.map(({ source, publisherIds }) =>
-					runSource(source, publisherIds, context),
-				),
+				domainSources.map(({ source, publisherIds }) => runSource(source, publisherIds, context)),
 			);
 
 			for (const r of results) {
@@ -252,9 +211,7 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 		log.info("Fetching completed for all domains.");
 
 		if (allErrors.length > 0) {
-			throw new Error(
-				`Indexing completed with ${allErrors.length} failed publisher run(s)`,
-			);
+			throw new Error(`Indexing completed with ${allErrors.length} failed publisher run(s)`);
 		}
 	} finally {
 	}

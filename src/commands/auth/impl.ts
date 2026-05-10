@@ -5,9 +5,7 @@ export async function auth(flags: AuthCommandFlags): Promise<void> {
 	const workspacePath = flags.workspacePath ?? ".";
 	const sources = buildSources();
 
-	const sourcesToAuth = flags.source
-		? sources.filter((s) => s.sourceId === flags.source)
-		: sources;
+	const sourcesToAuth = flags.source ? sources.filter((s) => s.sourceId === flags.source) : sources;
 
 	if (sourcesToAuth.length === 0) {
 		return;
