@@ -3,7 +3,7 @@ import { sourceIdSchema } from "../../config.js";
 
 export const indexCommand = buildCommand({
 	loader: async () => {
-		const { index } = await import("./impl");
+		const { index } = await import("./run");
 		return index;
 	},
 	parameters: {

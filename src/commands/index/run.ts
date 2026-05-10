@@ -1,12 +1,10 @@
 import path from "node:path";
+
 import type { LanguageModel } from "ai";
 import YAML from "yaml";
+
 import { type Config, DATA_DIR_NAME, type DomainConfig, loadConfig, type SourceId } from "../../config.js";
-import {
-	type ContentEngine,
-	createContentEngine,
-	type DomainEntry,
-} from "../../content/index.js";
+import { type ContentEngine, createContentEngine, type DomainEntry } from "../../content/index.js";
 import { buildSources } from "../../sources/index.js";
 import type { Source, SourceContext } from "../../sources/types.js";
 import { createLogger } from "../../utils/logger.js";
@@ -26,9 +24,18 @@ type TagSchema = Array<{
 	enumValues: string[] | null;
 }>;
 
+type ProviderFactory = (opts: Record<string, unknown>) => (model: string) => LanguageModel;
+
 type PublisherTask = { publisherId: string; context: SourceContext };
 type PublisherError = { sourceId: SourceId; publisherId: string; error: unknown };
 type SourceRun = { source: Source; publishers: PublisherTask[] };
+
+type RunContext = {
+	config: Config;
+	workspacePath: string;
+	engine: ContentEngine;
+	model: LanguageModel;
+};
 
 export async function index(flags: IndexCommandFlags): Promise<void> {
 	const workspacePath = flags.workspacePath ?? ".";
@@ -39,7 +46,8 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 
 	await engine.start();
 
-	const sourceRuns = buildSourceRuns(sources, config, flags, workspacePath, engine, model);
+	const ctx: RunContext = { config, workspacePath, engine, model };
+	const sourceRuns = buildSourceRuns(sources, flags, ctx);
 
 	if (sourceRuns.length === 0) {
 		log.warn("No sources configured.");
@@ -67,18 +75,15 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 	}
 }
 
-
 async function resolveModel(config: Config): Promise<LanguageModel> {
 	const { provider, model: modelName, options } = config.indexing.model;
 	const providerModule = await import(provider);
-	const found = Object.entries(providerModule).find(
-		([key, val]) => /^create[A-Z]/.test(key) && typeof val === "function",
+	const entry = Object.entries(providerModule).find(
+		(pair): pair is [string, ProviderFactory] => /^create[A-Z]/.test(pair[0]) && isProviderFactory(pair[1]),
 	);
-	if (!found) throw new Error(`No provider factory found in ${provider}`);
-	const [, factory] = found as [string, (opts: Record<string, unknown>) => (model: string) => LanguageModel];
-	return factory(resolveEnvVars(options ?? {}))(modelName);
+	if (!entry) throw new Error(`No provider factory found in ${provider}`);
+	return entry[1](resolveEnvVars(options ?? {}))(modelName);
 }
-
 
 async function createEngine(
 	sources: Source[],
@@ -95,19 +100,42 @@ async function createEngine(
 	});
 }
 
+function buildDomainEntry(domain: DomainConfig): DomainEntry {
+	return {
+		name: domain.name,
+		domain: domain.description,
+		tagSchema: YAML.stringify(buildTagSchema(domain)),
+	};
+}
 
-function buildSourceRuns(
-	sources: Source[],
-	config: Config,
-	flags: IndexCommandFlags,
-	workspacePath: string,
-	engine: ContentEngine,
-	model: LanguageModel,
-): SourceRun[] {
+function buildTagSchema(domain: DomainConfig): TagSchema {
+	return Object.entries(domain.tags).map(([name, entry]) => ({
+		name,
+		type: entry.type,
+		description: entry.description ?? "",
+		enumValues: entry.type === "enum" || entry.type === "enum[]" ? entry.values : null,
+	}));
+}
+
+function buildCustomPrompts(sources: Source[], domains: DomainConfig[]): Record<string, string> {
+	const prompts: Record<string, string> = {};
+
+	for (const domain of domains) {
+		const tagSchemaJson = JSON.stringify(buildTagSchema(domain), null, 2);
+		for (const source of sources) {
+			const prompt = source.getProcessingPrompt?.(domain.description, tagSchemaJson);
+			if (prompt) prompts[`${domain.name}/${source.sourceId}`] = prompt;
+		}
+	}
+
+	return prompts;
+}
+
+function buildSourceRuns(sources: Source[], flags: IndexCommandFlags, ctx: RunContext): SourceRun[] {
 	const runMap = new Map<SourceId, SourceRun>();
 
-	for (const domain of config.domains) {
-		const context: SourceContext = { config, domainConfig: domain, domain: domain.name, workspacePath, engine, model };
+	for (const domain of ctx.config.domains) {
+		const context: SourceContext = { ...ctx, domainConfig: domain, domain: domain.name };
 		for (const source of sources) {
 			addSourcePublishers(runMap, source, context, flags);
 		}
@@ -115,7 +143,6 @@ function buildSourceRuns(
 
 	return [...runMap.values()];
 }
-
 
 function addSourcePublishers(
 	runMap: Map<SourceId, SourceRun>,
@@ -137,7 +164,6 @@ function addSourcePublishers(
 	else runMap.set(source.sourceId, { source, publishers });
 }
 
-
 async function checkAuthentication(sources: Source[], workspacePath: string): Promise<void> {
 	for (const source of sources) {
 		if (source.authenticate) {
@@ -151,7 +177,6 @@ async function checkAuthentication(sources: Source[], workspacePath: string): Pr
 	}
 }
 
-
 async function runSource(source: Source, publishers: PublisherTask[]): Promise<PublisherError[]> {
 	const logger = createLogger(source.sourceId);
 	const errors: PublisherError[] = [];
@@ -162,9 +187,7 @@ async function runSource(source: Source, publishers: PublisherTask[]): Promise<P
 			await source.runOnce(context, publisherId);
 		} catch (error) {
 			errors.push({ sourceId: source.sourceId, publisherId, error });
-			logger.error(
-				`Error processing '${publisherId}': ${error instanceof Error ? error.message : String(error)}`,
-			);
+			logger.error(`Error processing '${publisherId}': ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
@@ -173,47 +196,19 @@ async function runSource(source: Source, publishers: PublisherTask[]): Promise<P
 	return errors;
 }
 
-
-function buildCustomPrompts(sources: Source[], domains: DomainConfig[]): Record<string, string> {
-	const prompts: Record<string, string> = {};
-
-	for (const domain of domains) {
-		const tagSchemaJson = JSON.stringify(buildTagSchema(domain), null, 2);
-		for (const source of sources) {
-			const prompt = source.getProcessingPrompt?.(domain.description, tagSchemaJson);
-			if (prompt) prompts[`${domain.name}/${source.sourceId}`] = prompt;
-		}
-	}
-
-	return prompts;
+function isProviderFactory(value: unknown): value is ProviderFactory {
+	return typeof value === "function";
 }
 
-
-function buildDomainEntry(domain: DomainConfig): DomainEntry {
-	return {
-		name: domain.name,
-		domain: domain.description,
-		tagSchema: YAML.stringify(buildTagSchema(domain)),
-	};
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
-
-function buildTagSchema(domain: DomainConfig): TagSchema {
-	return Object.entries(domain.tags).map(([name, entry]) => ({
-		name,
-		type: entry.type,
-		description: entry.description ?? "",
-		enumValues: entry.type === "enum" || entry.type === "enum[]" ? entry.values : null,
-	}));
-}
-
 
 function resolveEnvVars(obj: Record<string, unknown>): Record<string, unknown> {
 	return Object.fromEntries(
 		Object.entries(obj).map(([key, value]) => {
 			if (typeof value === "string" && value.startsWith("env.")) return [key, process.env[value.slice(4)]];
-			if (typeof value === "object" && value !== null && !Array.isArray(value))
-				return [key, resolveEnvVars(value as Record<string, unknown>)];
+			if (isPlainObject(value)) return [key, resolveEnvVars(value)];
 			return [key, value];
 		}),
 	);
