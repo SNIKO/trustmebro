@@ -1,5 +1,5 @@
 import { generateFrontmatter } from "./formatter";
-import type { AgentType, DomainSkillData, SkillCreationOptions } from "./types.js";
+import type { DomainSkillData, SkillCreationOptions } from "./types.js";
 
 export const SOCIAL_SKILL_NAME = "search-social";
 
@@ -11,10 +11,17 @@ const SKILL_DESCRIPTION =
  * and links to their reference files.
  */
 export function createSkillIndex(data: SkillCreationOptions): string {
-	const formatter = generateFrontmatter(SOCIAL_SKILL_NAME, SKILL_DESCRIPTION, data.agent);
+	const formatter = generateFrontmatter(
+		SOCIAL_SKILL_NAME,
+		SKILL_DESCRIPTION,
+		data.agent,
+	);
 
 	const domainRows = data.domains
-		.map((d) => `| **${d.name}** | ${d.description} | [references/${d.name}.md](references/${d.name}.md) |`)
+		.map(
+			(d) =>
+				`| **${d.name}** | ${d.description} | [references/${d.name}.md](references/${d.name}.md) |`,
+		)
 		.join("\n");
 
 	return `${formatter}
@@ -49,11 +56,14 @@ ${domainRows}
  * Generate the per-domain reference file with full search instructions,
  * tag schema, and ripgrep examples.
  */
-export function createDomainReference(
-	domain: DomainSkillData,
-	agent: AgentType,
-): string {
-	const { processedPath, rawPath, tagReferenceList, exampleFields, publishers } = domain;
+export function createDomainReference(domain: DomainSkillData): string {
+	const {
+		processedPath,
+		rawPath,
+		tagReferenceList,
+		exampleFields,
+		publishers,
+	} = domain;
 
 	const [field1, field2, field3, field4] = exampleFields;
 
@@ -69,7 +79,10 @@ export function createDomainReference(
 
 	const publisherLines = Object.entries(publishers)
 		.filter(([, ids]) => ids && ids.length > 0)
-		.map(([platform, ids]) => `- **${platform}**: ${ids!.map((p) => `\`${p}\``).join(", ")}`)
+		.map(
+			([platform, ids]) =>
+				`- **${platform}**: ${ids!.map((p) => `\`${p}\``).join(", ")}`,
+		)
 		.join("\n");
 
 	return `# Domain: ${domain.name}

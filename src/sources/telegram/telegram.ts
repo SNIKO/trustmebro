@@ -326,7 +326,7 @@ async function processMessage(
 	minLength: number,
 ): Promise<void> {
 	const publishedAt = new Date(msg.date * 1000);
-	if (publishedAt < context.config.startDate) return;
+	if (publishedAt < context.domainConfig.startDate) return;
 
 	const text = msg.message?.trim() ?? "";
 	const title =
@@ -434,7 +434,7 @@ export function createTelegramSource(): Source {
 				const messages = await fetchMessages(
 					client,
 					publisherId,
-					context.config.startDate,
+					context.domainConfig.startDate,
 					lastMessageId,
 				);
 

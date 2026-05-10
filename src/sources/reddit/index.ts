@@ -29,7 +29,7 @@ export function createRedditSource(): Source {
 			const cutoffDate =
 				isBackfillComplete && latestFetched !== null
 					? new Date(latestFetched - OVERLAP_MS)
-					: context.config.startDate;
+					: context.domainConfig.startDate;
 
 			log.info(
 				`Fetching r/${publisherId} posts since ${cutoffDate.toISOString().split("T")[0]}`,
@@ -90,7 +90,7 @@ export function createRedditSource(): Source {
 
 			if (
 				!isBackfillComplete &&
-				cutoffDate.getTime() === context.config.startDate.getTime() &&
+				cutoffDate.getTime() === context.domainConfig.startDate.getTime() &&
 				reachedEndForBackfill
 			) {
 				await state.markBackfillComplete(publisherId);
