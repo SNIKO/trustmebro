@@ -109,7 +109,7 @@ async function fetchUrlContent(url: string): Promise<{ name: string; content: st
 		if (!response.ok) return null;
 		const html = await response.text();
 		const { document } = parseHTML(html);
-		const article = new Readability(document as unknown as Document).parse();
+		const article = new Readability(document as any).parse();
 		const name = article?.title?.trim() || url;
 		const content = article?.textContent?.trim() ?? "";
 		if (!content) return null;
