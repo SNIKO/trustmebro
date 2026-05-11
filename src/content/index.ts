@@ -3,6 +3,7 @@ import { type DomainEntry, startWorkers, type WorkerHandle } from "./processor.j
 import { createStorage } from "./storage.js";
 import type { AddInput, AddResult, DocumentRef, SourceCounts } from "./types.js";
 
+export type { DomainEntry } from "./processor.js";
 export type {
 	AddInput,
 	AddResult,
