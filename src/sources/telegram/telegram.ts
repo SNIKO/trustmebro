@@ -1,8 +1,6 @@
 import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
-import { generateText } from "ai";
 import input from "input";
 import { TelegramClient } from "telegram";
 import { Logger, LogLevel } from "telegram/extensions/Logger.js";
@@ -16,16 +14,10 @@ const log = createLogger("telegram");
 
 const SESSION_FILE = "telegram-session.txt";
 
-type ImageInfo = {
-	path: string;
-	mimeType: string;
-};
-
 type TelegramMessage = {
 	id: number;
 	date: number;
 	message?: string;
-	images?: ImageInfo[];
 };
 
 let unhandledRejectionHandlerInstalled = false;
@@ -116,59 +108,6 @@ async function authenticateTelegram(workspacePath: string): Promise<boolean> {
 	}
 }
 
-function extractPhotos(message: Api.Message): Api.Photo[] {
-	const photos: Api.Photo[] = [];
-
-	if (message.photo instanceof Api.Photo) {
-		photos.push(message.photo);
-	}
-
-	if (message.media instanceof Api.MessageMediaPhoto) {
-		const media = message.media as Api.MessageMediaPhoto;
-		if (media.photo instanceof Api.Photo) {
-			photos.push(media.photo);
-		}
-	}
-
-	if (message.media instanceof Api.MessageMediaWebPage) {
-		const media = message.media as Api.MessageMediaWebPage;
-		if (media.webpage instanceof Api.WebPage && media.webpage.photo instanceof Api.Photo) {
-			photos.push(media.webpage.photo);
-		}
-	}
-
-	return photos;
-}
-
-async function downloadImage(
-	client: TelegramClient,
-	photo: Api.Photo,
-	messageId: number,
-	imageIndex: number,
-): Promise<ImageInfo | null> {
-	try {
-		const tempDir = path.join(os.tmpdir(), "trustmebro-telegram");
-		await fs.mkdir(tempDir, { recursive: true });
-
-		const filename = `telegram-${messageId}-${imageIndex}.jpg`;
-		const filePath = path.join(tempDir, filename);
-
-		const buffer = await client.downloadMedia(photo as unknown as Api.TypeMessageMedia);
-		if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-			return null;
-		}
-
-		await fs.writeFile(filePath, buffer);
-
-		return {
-			path: filePath,
-			mimeType: "image/jpeg",
-		};
-	} catch {
-		return null;
-	}
-}
-
 async function fetchMessages(
 	client: TelegramClient,
 	channelId: string,
@@ -192,24 +131,10 @@ async function fetchMessages(
 		for (const msg of batch) {
 			if (msg.date < startTimestamp) return results;
 
-			const photos = extractPhotos(msg);
-			const images: ImageInfo[] = [];
-
-			for (let i = 0; i < photos.length; i++) {
-				const photo = photos[i];
-				if (!photo) continue;
-
-				const imageInfo = await downloadImage(client, photo, msg.id, i);
-				if (imageInfo) {
-					images.push(imageInfo);
-				}
-			}
-
 			results.push({
 				id: msg.id,
 				date: msg.date,
 				message: msg.message,
-				images: images.length > 0 ? images : undefined,
 			});
 		}
 
@@ -240,49 +165,44 @@ async function getChannelSubscriberCount(client: TelegramClient, channelId: stri
 	}
 }
 
-async function processImagesWithLLM(context: SourceContext, postText: string, images: ImageInfo[]): Promise<string> {
-	if (images.length === 0) return "";
+const URL_REGEX = /https?:\/\/[^\s<>"'\]\)]+/g;
 
-	const imageData = await Promise.all(
-		images.map(async (img) => {
-			try {
-				const buffer = await fs.readFile(img.path);
-				if (buffer.length === 0) return null;
-				const base64 = buffer.toString("base64");
-				return `<img src="data:${img.mimeType};base64,${base64}" />`;
-			} catch {
-				return null;
-			}
+function extractUrls(text: string): string[] {
+	return [...new Set(text.match(URL_REGEX) ?? [])];
+}
+
+async function buildReferenceBlocks(urls: string[]): Promise<string> {
+	if (urls.length === 0) return "";
+	const refs = await Promise.all(
+		urls.map(async (url) => {
+			const result = await fetchUrlContent(url);
+			if (!result) return null;
+			return `<reference name="${result.name}" url="${url}">\n${result.content}\n</reference>`;
 		}),
 	);
-
-	const validImageData = imageData.filter((data): data is string => data !== null);
-
-	if (validImageData.length === 0) return "";
-
-	const prompt = `Analyze these images in the context of the following post. Provide a concise summary of what the images show that's relevant to understanding the post content.
-
-Post: ${postText}
-
-Output a paragraph describing the key visual information that adds context to the post. Focus on information that helps understand the post's meaning, data, or context.`;
-
-	const res = [];
-
-	for (const img of validImageData) {
-		try {
-			const { text } = await generateText({
-				model: context.model,
-				prompt: `${prompt}\n\n${img}`,
-			});
-
-			res.push(text.trim());
-		} catch {
-			// Ignore individual image processing errors
-		}
-	}
-
-	return res.join("\n");
+	const validRefs = refs.filter((r): r is string => r !== null);
+	return validRefs.length > 0 ? "\n\n" + validRefs.join("\n\n") : "";
 }
+
+async function fetchUrlContent(url: string): Promise<{ name: string; content: string } | null> {
+	try {
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 10_000);
+		const response = await fetch(url, {
+			signal: controller.signal,
+			headers: { "User-Agent": "Mozilla/5.0 (compatible; TrustMeBro/1.0)" },
+		});
+		clearTimeout(timer);
+		if (!response.ok) return null;
+		const html = await response.text();
+		const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+		const name = titleMatch?.[1]?.trim() ?? url;
+		return { name, content: html.slice(0, 50_000) };
+	} catch {
+		return null;
+	}
+}
+
 
 async function processMessage(
 	context: SourceContext,
@@ -290,36 +210,28 @@ async function processMessage(
 	msg: TelegramMessage,
 	state: TelegramState,
 	subscriberCount: number | null | undefined,
-	minLength: number,
 ): Promise<void> {
 	const publishedAt = new Date(msg.date * 1000);
 	if (publishedAt < context.domainConfig.startDate) return;
 
 	const text = msg.message?.trim() ?? "";
+
+	if (text.length < 100) {
+		log.debug(`Ignoring short message ${msg.id} from @${channelId} (${text.length} chars)`);
+		return;
+	}
+
 	const title = text.slice(0, 80).replace(/\n/g, " ").trim() || `Message ${msg.id}`;
-	const images = msg.images ?? [];
 
 	try {
-		let imageAnalysis = "";
-		if (images.length > 0) {
-			log.debug(`Processing ${images.length} images for message '${title}' from @${channelId}`);
-			imageAnalysis = await processImagesWithLLM(context, text, images);
-			log.debug(`Image analysis complete for message '${title}' from @${channelId}: ${imageAnalysis.length} chars`);
-			for (const img of images) {
-				try {
-					await fs.unlink(img.path);
-				} catch {
-					// Ignore cleanup errors
-				}
-			}
+		// Fetch referenced URLs and append as <reference> blocks
+		const urls = extractUrls(text);
+		if (urls.length > 0) {
+			log.debug(`Fetching ${urls.length} URL(s) for message '${title}' from @${channelId}`);
 		}
+		const referenceBlocks = await buildReferenceBlocks(urls);
 
-		const finalContent = imageAnalysis ? `${text}\n\n[Image Analysis: ${imageAnalysis}]` : text;
-
-		if (finalContent.length < minLength) {
-			log.debug(`Ignoring message '${title}' from @${channelId} (${finalContent.length} chars)`);
-			return;
-		}
+		const finalContent = text + referenceBlocks;
 
 		const label = text.slice(0, 80).replace(/\n/g, " ").trim();
 		const handle = channelId.startsWith("@") ? channelId : `@${channelId}`;
@@ -338,8 +250,6 @@ async function processMessage(
 				channelUsername: channelId,
 				messageUrl,
 				messageId: msg.id,
-				hasImages: images.length > 0,
-				imageCount: images.length,
 				...(subscriberCount !== null && subscriberCount !== undefined ? { subscriberCount } : {}),
 			},
 		});
@@ -390,11 +300,9 @@ export function createTelegramSource(): Source {
 				log.info(`Fetched ${messages.length} new messages from @${publisherId}`);
 
 				const ordered = messages.slice().sort((a, b) => a.id - b.id);
-				const minLength = context.domainConfig.sources.telegram?.minMessageLength ?? 200;
-
 				for (const msg of ordered) {
 					try {
-						await processMessage(context, publisherId, msg, state, subscriberCount, minLength);
+						await processMessage(context, publisherId, msg, state, subscriberCount);
 						indexedCount++;
 						log.info(`Processed ${indexedCount}/${messages.length} messages for @${publisherId}`);
 					} catch (error) {
