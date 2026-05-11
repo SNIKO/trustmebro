@@ -1,3 +1,5 @@
+import { Readability } from "@mozilla/readability";
+import { parseHTML } from "linkedom";
 import { createLogger } from "../../utils/logger.js";
 import type { SourceContext } from "../types.js";
 import type { TelegramMessage } from "./fetch.js";
@@ -18,10 +20,6 @@ export async function processMessage(
 	if (publishedAt < context.domainConfig.startDate) return;
 
 	const text = msg.message?.trim() ?? "";
-	if (text.length < 100) {
-		log.debug(`Ignoring short message ${msg.id} from @${channelId} (${text.length} chars)`);
-		return;
-	}
 
 	const label = text.slice(0, 80).replace(/\n/g, " ").trim();
 	const handle = channelId.startsWith("@") ? channelId : `@${channelId}`;
@@ -29,6 +27,11 @@ export async function processMessage(
 
 	try {
 		const content = await enrichWithReferences(text);
+		if (content.length < 500) {
+			log.debug(`Ignoring short message ${msg.id} from @${channelId} (${text.length} chars)`);
+			return;
+		}
+
 		await ingestMessage({ context, channelId, msg, state, label, messageUrl, content, subscriberCount, publishedAt });
 	} catch (error) {
 		const title = label || `Message ${msg.id}`;
@@ -105,16 +108,20 @@ async function fetchUrlContent(url: string): Promise<{ name: string; content: st
 		clearTimeout(timer);
 		if (!response.ok) return null;
 		const html = await response.text();
-		const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-		const name = titleMatch?.[1]?.trim() ?? url;
-		return { name, content: html.slice(0, 50_000) };
+		const { document } = parseHTML(html);
+		const article = new Readability(document as unknown as Document).parse();
+		const name = article?.title?.trim() || url;
+		const content = article?.textContent?.trim() ?? "";
+		if (!content) return null;
+		return { name, content: content.slice(0, 50_000) };
 	} catch {
 		return null;
 	}
 }
 
 function extractUrls(text: string): string[] {
+	const urlsToExclude = ["https://t.me/", "youtube", "bybit", "binance"];
 	const urls = new Set(text.match(URL_REGEX) ?? []);
-	const filtered = [...urls].filter((url) => url.startsWith("https://t.me/"));
+	const filtered = [...urls].filter((url) => !urlsToExclude.some((exclude) => url.includes(exclude)));
 	return filtered;
 }
