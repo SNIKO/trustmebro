@@ -76,13 +76,13 @@ export async function index(flags: IndexCommandFlags): Promise<void> {
 }
 
 async function resolveModel(config: Config): Promise<LanguageModel> {
-	const { provider, model: modelName, options } = config.indexing.model;
+	const { provider, model, options } = config.indexing.model;
 	const providerModule = await import(provider);
 	const entry = Object.entries(providerModule).find(
 		(pair): pair is [string, ProviderFactory] => /^create[A-Z]/.test(pair[0]) && isProviderFactory(pair[1]),
 	);
 	if (!entry) throw new Error(`No provider factory found in ${provider}`);
-	return entry[1](resolveEnvVars(options ?? {}))(modelName);
+	return entry[1](resolveEnvVars(options ?? {}))(model);
 }
 
 async function createEngine(
