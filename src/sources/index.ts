@@ -1,5 +1,5 @@
 import { createRedditSource } from "./reddit/index.js";
-import { createTelegramSource } from "./telegram/telegram.js";
+import { createTelegramSource } from "./telegram/index.js";
 import type { Source } from "./types.js";
 import { createYoutubeSource } from "./youtube/index.js";
 

@@ -1,45 +1,24 @@
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import YAML from "yaml";
+import { z } from "zod";
+import { BaseSourceState } from "../base-state.js";
 
-type State = Record<string, { lastMessageId: number }>;
+const channelStateSchema = z.object({ lastMessageId: z.number() });
+const stateSchema = z.record(z.string(), channelStateSchema).default({});
 
-export class TelegramState {
-	private readonly filePath: string;
-	private state: State = {};
+type State = z.infer<typeof stateSchema>;
+
+export class TelegramState extends BaseSourceState<State> {
+	protected schema = stateSchema;
 
 	constructor(workspacePath: string) {
-		this.filePath = path.join(workspacePath, ".trustmebro", "index-telegram.yaml");
+		super(workspacePath, "index-telegram.yaml");
+	}
+
+	protected getDefaultState(): State {
+		return {};
 	}
 
 	private key(channelId: string): string {
 		return channelId.toLowerCase();
-	}
-
-	async load(): Promise<void> {
-		if (!existsSync(this.filePath)) {
-			this.state = {};
-			return;
-		}
-
-		try {
-			const raw = await readFile(this.filePath, "utf8");
-			this.state = YAML.parse(raw) ?? {};
-		} catch {
-			this.state = {};
-		}
-	}
-
-	async save(): Promise<void> {
-		const dir = path.dirname(this.filePath);
-		await mkdir(dir, { recursive: true });
-
-		const tempPath = `${this.filePath}.tmp`;
-		const yaml = YAML.stringify(this.state);
-
-		await writeFile(tempPath, yaml, "utf8");
-		await writeFile(this.filePath, yaml, "utf8");
 	}
 
 	getLastMessageId(channelId: string): number {
@@ -48,11 +27,9 @@ export class TelegramState {
 
 	async markIndexed(channelId: string, messageId: number): Promise<void> {
 		const id = this.key(channelId);
-		if (!this.state[id]) {
-			this.state[id] = { lastMessageId: messageId };
-		} else if (messageId > this.state[id].lastMessageId) {
-			this.state[id].lastMessageId = messageId;
-		}
+		const current = this.state[id]?.lastMessageId ?? 0;
+		if (messageId <= current) return;
+		this.state[id] = { lastMessageId: messageId };
 		await this.save();
 	}
 }
