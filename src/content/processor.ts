@@ -285,6 +285,7 @@ export function startWorkers(args: {
 					workerLogger.warn(`Rate-limited by LLM. Sleeping ${sleepSecs}s before retry...`);
 					requeueRef(ref);
 				} else {
+					workerLogger.error(`Unexpected error processing ref ${ref}: ${String(err)}`);
 					totalErrors++;
 				}
 			}
