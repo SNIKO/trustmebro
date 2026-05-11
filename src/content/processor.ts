@@ -1,4 +1,4 @@
-import { generateText, type LanguageModel } from "ai";
+import { APICallError, generateText, type LanguageModel } from "ai";
 import YAML from "yaml";
 import { createLogger, type Logger } from "../utils/logger.js";
 import type { Storage } from "./storage.js";
@@ -71,6 +71,38 @@ export interface DomainEntry {
 	tagSchema: string;
 }
 
+class RateLimitError extends Error {
+	constructor() {
+		super("Too Many Requests");
+	}
+}
+
+const BACKOFF_SCHEDULE_MS = [60_000, 300_000, 600_000] as const;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function createRateLimiter() {
+	let level = 0;
+	let throttleUntil = 0;
+
+	return {
+		async waitIfThrottled(): Promise<void> {
+			const remaining = throttleUntil - Date.now();
+			if (remaining > 0) await sleep(remaining);
+		},
+		/** Escalates the backoff level and schedules the next throttle window. Returns sleep duration in seconds. */
+		onRateLimit(): number {
+			const sleepMs = BACKOFF_SCHEDULE_MS[Math.min(level, BACKOFF_SCHEDULE_MS.length - 1)] ?? 600_000;
+			level++;
+			throttleUntil = Math.max(throttleUntil, Date.now() + sleepMs);
+			return sleepMs / 1000;
+		},
+		onSuccess(): void {
+			level = 0;
+		},
+	};
+}
+
 function buildPrompt(rawContent: string, domain: string, tagSchema: string, customPrompt?: string): string {
 	if (customPrompt) {
 		return customPrompt.replaceAll("{CONTENT}", rawContent);
@@ -137,6 +169,7 @@ export function startWorkers(args: {
 	const idleWaiters: Array<() => void> = [];
 
 	const domainMap = new Map(domains.map((d) => [d.name, d]));
+	const rateLimiter = createRateLimiter();
 
 	const counts = storage.getCounts();
 	for (const source in counts) {
@@ -160,6 +193,15 @@ export function startWorkers(args: {
 		return new Promise((resolve) => {
 			refWaiters.push(resolve);
 		});
+	}
+
+	function requeueRef(ref: DocumentRef): void {
+		const waiter = refWaiters.shift();
+		if (waiter) {
+			waiter(ref);
+		} else {
+			queue.unshift(ref);
+		}
 	}
 
 	async function processOne(ref: DocumentRef, logger: Logger): Promise<void> {
@@ -202,7 +244,7 @@ export function startWorkers(args: {
 
 			logger.info(`Processing '${meta.label}' ${meta.publisher} (${meta.source})`);
 
-			const { text } = await generateText({ model, prompt });
+			const { text } = await generateText({ model, prompt, maxRetries: 0 });
 			const elapsed = (Date.now() - start) / 1000;
 
 			if (!text) {
@@ -216,6 +258,9 @@ export function startWorkers(args: {
 			await storage.saveProcessed(ref, renderDocument(raw.tags, text));
 			totalProcessed++;
 		} catch (err) {
+			if (APICallError.isInstance(err) && err.statusCode === 429) {
+				throw new RateLimitError();
+			}
 			logger.error(`Failed to process document '${meta.label}': ${err instanceof Error ? err.message : String(err)}`);
 			totalErrors++;
 		}
@@ -226,13 +271,23 @@ export function startWorkers(args: {
 
 		while (true) {
 			const ref = await takeNextRef();
-			if (!ref) {
-				return;
-			}
+			if (!ref) return;
 
 			activeWorkers++;
+			await rateLimiter.waitIfThrottled();
 
-			await processOne(ref, workerLogger);
+			try {
+				await processOne(ref, workerLogger);
+				rateLimiter.onSuccess();
+			} catch (err) {
+				if (err instanceof RateLimitError) {
+					const sleepSecs = rateLimiter.onRateLimit();
+					workerLogger.warn(`Rate-limited by LLM. Sleeping ${sleepSecs}s before retry...`);
+					requeueRef(ref);
+				} else {
+					totalErrors++;
+				}
+			}
 
 			activeWorkers--;
 			resolveIdleWaiters();
