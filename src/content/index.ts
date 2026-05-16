@@ -1,6 +1,6 @@
 import type { LanguageModel } from "ai";
 import { type DomainEntry, startWorkers, type WorkerHandle } from "./processor.js";
-import { createStorage } from "./storage.js";
+import { createStorage, getDomainFromRef, type Storage } from "./storage.js";
 import type { AddInput, AddResult, DocumentRef, SourceCounts } from "./types.js";
 
 export type { DomainEntry } from "./processor.js";
@@ -18,9 +18,13 @@ export interface ContentEngine {
 	stop(): Promise<void>;
 }
 
+export type ContentEngineDomain = DomainEntry & {
+	/** Absolute path to the directory where raw and processed files are stored. */
+	dataDir: string;
+};
+
 export type ContentEngineOptions = {
-	basePath: string;
-	domains: DomainEntry[];
+	domains: ContentEngineDomain[];
 	model: LanguageModel;
 	workers?: number;
 	/** Custom prompts keyed by "{domainName}/{sourceId}" */
@@ -28,7 +32,7 @@ export type ContentEngineOptions = {
 };
 
 export async function createContentEngine(options: ContentEngineOptions): Promise<ContentEngine> {
-	const storage = await createStorage(options.basePath);
+	const storage = await buildCompositeStorage(options.domains);
 	const initialQueue: DocumentRef[] = [];
 
 	// Enqueue existing unprocessed documents
@@ -82,6 +86,49 @@ export async function createContentEngine(options: ContentEngineOptions): Promis
 		async waitForIdle() {
 			if (!workerHandle) return;
 			await workerHandle.waitForIdle();
+		},
+	};
+}
+
+async function buildCompositeStorage(domains: ContentEngineDomain[]): Promise<Storage> {
+	const storageByPath = new Map<string, Storage>();
+	const domainStorage = new Map<string, Storage>();
+
+	for (const domain of domains) {
+		let s = storageByPath.get(domain.dataDir);
+		if (!s) {
+			s = await createStorage(domain.dataDir);
+			storageByPath.set(domain.dataDir, s);
+		}
+		domainStorage.set(domain.name, s);
+	}
+
+	const uniqueStorages = [...new Set(domainStorage.values())];
+
+	function storageFor(domain: string): Storage {
+		const s = domainStorage.get(domain);
+		if (!s) throw new Error(`Unknown domain '${domain}'`);
+		return s;
+	}
+
+	return {
+		saveRaw: (input) => storageFor(input.domain).saveRaw(input),
+		readRaw: (ref) => storageFor(getDomainFromRef(ref)).readRaw(ref),
+		saveProcessed: (ref, content) => storageFor(getDomainFromRef(ref)).saveProcessed(ref, content),
+		async getUnprocessed() {
+			const results = await Promise.all(uniqueStorages.map((s) => s.getUnprocessed()));
+			return results.flat().sort();
+		},
+		getCounts() {
+			const combined: SourceCounts = {};
+			for (const s of uniqueStorages) {
+				for (const [source, counts] of Object.entries(s.getCounts())) {
+					combined[source] ??= { fetched: 0, processed: 0 };
+					combined[source].fetched += counts.fetched;
+					combined[source].processed += counts.processed;
+				}
+			}
+			return combined;
 		},
 	};
 }
