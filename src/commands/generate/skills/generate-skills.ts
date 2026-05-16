@@ -1,7 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Config, ConfigTag, ConfigTags, DomainConfig } from "../../../config.js";
-import { DATA_DIR_NAME } from "../../../config.js";
 import { createDomainReference, createSkillIndex, SOCIAL_SKILL_NAME } from "./social-skill.js";
 import type { AgentType, DomainSkillData, SkillCreationOptions } from "./types.js";
 
@@ -43,9 +42,9 @@ function buildPublishers(domain: DomainConfig): Partial<Record<string, string[]>
 	return result;
 }
 
-function buildDomainSkillData(domain: DomainConfig, dataDir: string): DomainSkillData {
-	const processedPath = `${dataDir}/processed/${domain.name}`;
-	const rawPath = `${dataDir}/raw/${domain.name}`;
+function buildDomainSkillData(domain: DomainConfig): DomainSkillData {
+	const processedPath = `${domain.dataDir}/processed/${domain.name}`;
+	const rawPath = `${domain.dataDir}/raw/${domain.name}`;
 	return {
 		name: domain.name,
 		description: domain.description,
@@ -96,14 +95,13 @@ async function saveFile(filePath: string, content: string): Promise<void> {
  * Returns the list of written file paths.
  */
 export async function generateSkills(config: Config, agent: AgentType): Promise<string[]> {
-	const dataDir = DATA_DIR_NAME;
 	const skillDir = getSkillDir(agent);
 
-	const domainSkillData = config.domains.map((d) => buildDomainSkillData(d, dataDir));
+	const domainSkillData = config.domains.map((d) => buildDomainSkillData(d));
 
 	const options: SkillCreationOptions = {
 		agent,
-		dataDir,
+		dataDir: config.domains[0]?.dataDir ?? "data/social",
 		domains: domainSkillData,
 	};
 

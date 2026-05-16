@@ -3,8 +3,8 @@ import path from "node:path";
 import type { LanguageModel } from "ai";
 import YAML from "yaml";
 
-import { type Config, DATA_DIR_NAME, type DomainConfig, loadConfig, type SourceId } from "../../config.js";
-import { type ContentEngine, createContentEngine, type DomainEntry } from "../../content/index.js";
+import { type Config, type DomainConfig, loadConfig, type SourceId } from "../../config.js";
+import { type ContentEngine, type ContentEngineDomain, createContentEngine } from "../../content/index.js";
 import { buildSources } from "../../sources/index.js";
 import type { Source, SourceContext } from "../../sources/types.js";
 import { createLogger } from "../../utils/logger.js";
@@ -92,18 +92,19 @@ async function createEngine(
 	model: LanguageModel,
 ): Promise<ContentEngine> {
 	return createContentEngine({
-		basePath: path.join(workspacePath, DATA_DIR_NAME),
-		domains: config.domains.map(buildDomainEntry),
+		domains: config.domains.map((d) => buildDomainEntry(d, workspacePath)),
 		model,
 		workers: config.indexing.workers,
 		customPrompts: buildCustomPrompts(sources, config.domains),
 	});
 }
 
-function buildDomainEntry(domain: DomainConfig): DomainEntry {
+function buildDomainEntry(domain: DomainConfig, workspacePath: string): ContentEngineDomain {
+	const dataDir = path.isAbsolute(domain.dataDir) ? domain.dataDir : path.join(workspacePath, domain.dataDir);
 	return {
 		name: domain.name,
 		domain: domain.description,
+		dataDir,
 		tagSchema: YAML.stringify(buildTagSchema(domain)),
 	};
 }

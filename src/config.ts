@@ -2,8 +2,6 @@ import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { z } from "zod";
 
-export const DATA_DIR_NAME = "data/social";
-
 export const sourceIdSchema = z.enum(["youtube", "telegram", "twitter", "reddit"]);
 export type SourceId = z.infer<typeof sourceIdSchema>;
 
@@ -22,9 +20,7 @@ const configTagSchema = z.discriminatedUnion("type", [
 const tagsSchema = z.record(z.string(), configTagSchema);
 
 export type ConfigTag = z.infer<typeof configTagSchema>;
-
 export type ConfigTags = z.infer<typeof tagsSchema>;
-
 export type TagType = ConfigTag["type"];
 
 const publisherConfigSchema = z.object({
@@ -34,7 +30,7 @@ const publisherConfigSchema = z.object({
 const telegramConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
 	/** Minimum message length (characters) to index. Messages shorter than this with no images are ignored. */
-	minMessageLength: z.coerce.number().int().nonnegative().optional().default(200),
+	minMessageLength: z.coerce.number().int().nonnegative().default(200),
 });
 
 export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
@@ -42,8 +38,8 @@ export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
 const redditConfigSchema = z.object({
 	publishers: z.array(z.string()).default([]),
 	/** Minimum number of comments required for a post to be indexed */
-	commentsCountThreshold: z.coerce.number().int().nonnegative().optional().default(0),
-	sleepBetweenRequestsMs: z.coerce.number().int().nonnegative().optional().default(1000),
+	commentsCountThreshold: z.coerce.number().int().nonnegative().default(0),
+	sleepBetweenRequestsMs: z.coerce.number().int().nonnegative().default(1000),
 });
 
 export type RedditConfig = z.infer<typeof redditConfigSchema>;
@@ -54,12 +50,12 @@ const modelConfigSchema = z.object({
 	options: z.record(z.string(), z.unknown()).optional(),
 });
 
+export type ModelConfig = z.infer<typeof modelConfigSchema>;
+
 const indexingConfigSchema = z.object({
-	workers: z.coerce.number().int().optional().default(5),
+	workers: z.coerce.number().int().default(5),
 	model: modelConfigSchema,
 });
-
-export type ModelConfig = z.infer<typeof modelConfigSchema>;
 
 const domainSourcesSchema = z.object({
 	youtube: publisherConfigSchema.optional(),
@@ -72,6 +68,8 @@ const domainConfigSchema = z.object({
 	/** Slug used as the folder name for storage and reference files (kebab-case). */
 	name: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Domain name must be kebab-case (e.g. stock-market)"),
 	description: z.string(),
+	/** Relative or absolute path for storing raw and processed files. Defaults to "data/social". */
+	dataDir: z.string().default("data/social"),
 	/** Fetch content published on or after this date. */
 	startDate: z.coerce.date(),
 	sources: domainSourcesSchema,
@@ -88,50 +86,40 @@ export type DomainSources = z.infer<typeof domainSourcesSchema>;
 export type DomainConfig = z.infer<typeof domainConfigSchema>;
 export type Config = z.infer<typeof configSchema>;
 
-function normalizePublisherId(source: SourceId, id: string): string {
-	let normalized = id;
-	switch (source) {
-		case "youtube":
-		case "telegram":
-		case "twitter":
-			if (normalized.startsWith("@")) normalized = normalized.slice(1);
-			break;
-		case "reddit":
-			if (normalized.startsWith("r/")) normalized = normalized.slice(2);
-			else if (normalized.startsWith("r:")) normalized = normalized.slice(2);
-			break;
-	}
-	return normalized.toLowerCase();
-}
-
-function normalizePublishers(source: SourceId, publishers: string[]): string[] {
-	return publishers.map((p) => normalizePublisherId(source, p));
-}
-
-function normalizeDomainSources(domain: DomainConfig): DomainConfig {
-	const normalizedSources = Object.fromEntries(
-		Object.entries(domain.sources).map(([key, sourceConfig]) => {
-			if (!sourceConfig?.publishers) return [key, sourceConfig];
-			return [
-				key,
-				{
-					...sourceConfig,
-					publishers: normalizePublishers(key as SourceId, sourceConfig.publishers),
-				},
-			];
-		}),
-	);
-	return { ...domain, sources: normalizedSources as DomainConfig["sources"] };
-}
-
 export async function loadConfig(configPath: string): Promise<Config> {
 	const rawText = await readFile(configPath, "utf8");
-	const clean = rawText.replace(/^\uFEFF/, "");
-	const parsed = parse(clean);
+	const config = configSchema.parse(parse(rawText.replace(/^\uFEFF/, "")));
+	return { ...config, domains: config.domains.map(normalizeDomain) };
+}
 
-	const config = configSchema.parse(parsed);
+function normalizeDomain(domain: DomainConfig): DomainConfig {
+	const { youtube, telegram, twitter, reddit } = domain.sources;
 	return {
-		...config,
-		domains: config.domains.map(normalizeDomainSources),
+		...domain,
+		sources: {
+			youtube: youtube
+				? { ...youtube, publishers: youtube.publishers.map((p) => normalizePublisherId("youtube", p)) }
+				: undefined,
+			telegram: telegram
+				? { ...telegram, publishers: telegram.publishers.map((p) => normalizePublisherId("telegram", p)) }
+				: undefined,
+			twitter: twitter
+				? { ...twitter, publishers: twitter.publishers.map((p) => normalizePublisherId("twitter", p)) }
+				: undefined,
+			reddit: reddit
+				? { ...reddit, publishers: reddit.publishers.map((p) => normalizePublisherId("reddit", p)) }
+				: undefined,
+		},
 	};
+}
+
+function normalizePublisherId(source: SourceId, id: string): string {
+	const prefixes: Record<SourceId, string[]> = {
+		youtube: ["@"],
+		telegram: ["@"],
+		twitter: ["@"],
+		reddit: ["r/", "r:"],
+	};
+	const prefix = prefixes[source].find((p) => id.startsWith(p)) ?? "";
+	return id.slice(prefix.length).toLowerCase();
 }
