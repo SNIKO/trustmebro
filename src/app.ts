@@ -17,7 +17,7 @@ const routes = buildRouteMap({
 	routes: {
 		auth: authCommand,
 		index: indexCommand,
-		// generate: generateRoutes,	Temporary disable skills generation until we have a better story around it
+		generate: generateRoutes,
 	},
 	docs: {
 		brief: "Fetch and index social media content for agentic search workflows.",
