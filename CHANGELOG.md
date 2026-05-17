@@ -1,5 +1,11 @@
 # @nikosv/trustmebro
 
+## 1.0.0
+
+### Major Changes
+
+- 8f10a63: Added support of mulitple domains and changed indexed files directory structure
+
 ## 0.3.0
 
 ### Minor Changes
