@@ -82,18 +82,52 @@ TrustMeBro uses an LLM to process and tag content. It relies on [AI SDK provider
 
 > **Tip:** Use `"env.VARIABLE_NAME"` syntax in your config to keep secrets out of config files.
 
-### 4. Configure Sources and Tags
+### 4. Configure Domains
 
-Edit your `config.yaml` to specify:
+TrustMeBro organizes everything into **domains** — each domain groups a topic, its sources, and its tag schema. A workspace can have multiple independent domains (e.g. `stock-market`, `crypto`, `health`).
 
-- **`startDate`** — Fetch content from this date forward (YYYY-MM-DD)
-- **`topic`** — High-level description for LLM context
+Edit your `config.yaml` and add a `domains` array. Each domain supports:
+
+- **`name`** — Kebab-case slug used as the folder name on disk (e.g. `stock-market`)
+- **`description`** — High-level description of the domain for LLM context
+- **`startDate`** — Fetch content published on or after this date (YYYY-MM-DD)
+- **`contentDir`** — *(optional)* Where to store raw and processed files. Defaults to the domain `name`. Accepts relative or absolute paths.
 - **`sources.youtube.publishers`** — YouTube channel handles (with `@` prefix)
 - **`sources.reddit.publishers`** — Subreddit names to track
+- **`sources.reddit.commentsCountThreshold`** — Minimum comment count to index a post
 - **`sources.telegram.publishers`** — Telegram channel usernames (with or without `@`)
-- **`tags`** — Structured metadata to extract (tickers, sentiment, sectors, narratives, etc.)
+- **`sources.telegram.minMessageLength`** — Minimum character length to index a message (default: 200)
+- **`tags`** — Structured metadata to extract per domain (tickers, sentiment, sectors, narratives, etc.)
 
-See [config.template.yaml](config.template.yaml) for detailed documentation on all options.
+```yaml
+domains:
+  - name: stock-market
+    description: "Stock market, investing, and financial markets"
+    startDate: 2025-12-01
+    sources:
+      youtube:
+        publishers:
+          - "@everythingmoney"
+          - "@JosephCarlsonShow"
+      reddit:
+        publishers:
+          - "investing"
+        commentsCountThreshold: 10
+      telegram:
+        publishers:
+          - "trend_gen"
+        minMessageLength: 200
+    tags:
+      ticker:
+        type: string[]
+        description: "Canonical stock tickers, UPPERCASE only."
+      sentiment:
+        type: enum[]
+        description: "Directional stance on the stock/market."
+        values: [bullish, bearish]
+```
+
+See [config.template.yaml](config.template.yaml) for a fully documented example with multiple domains and all available options.
 
 ### 5. Authenticate (Telegram only)
 
@@ -147,36 +181,43 @@ After indexing, your workspace looks like this:
 ```
 ~/stocks/
   .trustmebro/              # Internal state (auto-managed)
-  data/
-    social/
-      raw/                   # Original fetched content
-        youtube/
-          everythingmoney/
-            2025-12/
-              2025-12-15-nvidia-earnings-analysis.md
-        reddit/
-          investing/
-            2025-12/
-              2025-12-20-best-etf-for-long-term-growth.md
-        telegram/
-          trend_gen/
-            2025-12/
-              2025-12-18-market-update.md
-      processed/             # LLM-enriched, search-optimized content
-        youtube/
-          everythingmoney/
-            2025-12/
-              2025-12-15-nvidia-earnings-analysis.md
-        reddit/
-          investing/
-            2025-12/
-              2025-12-20-best-etf-for-long-term-growth.md
-        telegram/
-          trend_gen/
-            2025-12/
-              2025-12-18-market-update.md
+  stock-market/             # One folder per domain (contentDir defaults to domain name)
+    raw/                    # Original fetched content
+      youtube/
+        everythingmoney/
+          2025-12/
+            2025-12-15-nvidia-earnings-analysis.md
+      reddit/
+        investing/
+          2025-12/
+            2025-12-20-best-etf-for-long-term-growth.md
+      telegram/
+        trend_gen/
+          2025-12/
+            2025-12-18-market-update.md
+    processed/              # LLM-enriched, search-optimized content
+      youtube/
+        everythingmoney/
+          2025-12/
+            2025-12-15-nvidia-earnings-analysis.md
+      reddit/
+        investing/
+          2025-12/
+            2025-12-20-best-etf-for-long-term-growth.md
+      telegram/
+        trend_gen/
+          2025-12/
+            2025-12-18-market-update.md
+  crypto/              # A second domain with its own sources and tags
+    raw/
+      youtube/
+        ...
+    processed/
+      ...
   config.yaml
 ```
+
+Each domain gets its own directory tree under `raw/` and `processed/`. You can override the path with the `contentDir` field in the domain config.
 
 ---
 

@@ -3,7 +3,7 @@ export type AgentType = "claude-code" | "codex" | "opencode";
 export interface DomainSkillData {
 	name: string;
 	description: string;
-	/** Relative path to processed content for this domain (e.g. data/social/processed/stock-market) */
+	/** Relative path to processed content for this domain (e.g. stock-market/processed) */
 	processedPath: string;
 	rawPath: string;
 	tagReferenceList: string;
@@ -14,6 +14,5 @@ export interface DomainSkillData {
 
 export interface SkillCreationOptions {
 	agent: AgentType;
-	contentDir: string;
 	domains: DomainSkillData[];
 }
