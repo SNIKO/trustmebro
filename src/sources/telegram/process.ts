@@ -59,7 +59,6 @@ async function ingestMessage(args: {
 		source: "telegram",
 		publisher: channelId,
 		creationDate: publishedAt,
-		overwrite: false,
 		content,
 		tags: {
 			channelUsername: channelId,

@@ -43,8 +43,8 @@ function buildPublishers(domain: DomainConfig): Partial<Record<string, string[]>
 }
 
 function buildDomainSkillData(domain: DomainConfig): DomainSkillData {
-	const processedPath = `${domain.dataDir}/processed/${domain.name}`;
-	const rawPath = `${domain.dataDir}/raw/${domain.name}`;
+	const processedPath = `${domain.contentDir}/processed/${domain.name}`;
+	const rawPath = `${domain.contentDir}/raw/${domain.name}`;
 	return {
 		name: domain.name,
 		description: domain.description,
@@ -101,7 +101,7 @@ export async function generateSkills(config: Config, agent: AgentType): Promise<
 
 	const options: SkillCreationOptions = {
 		agent,
-		dataDir: config.domains[0]?.dataDir ?? "data/social",
+		contentDir: config.domains[0]?.contentDir ?? ".",
 		domains: domainSkillData,
 	};
 

@@ -126,7 +126,6 @@ async function ingestPost(args: {
 		source: "reddit",
 		publisher: subreddit,
 		creationDate: publishedAt,
-		overwrite: true,
 		content,
 		tags: {
 			subreddit: post.subreddit,
