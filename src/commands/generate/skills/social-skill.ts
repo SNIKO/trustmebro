@@ -40,7 +40,7 @@ ${domainRows}
 
 > **Tip:** If unsure which domain applies, start with a full-text search across all domains:
 > \`\`\`bash
-> rg -n -C 3 "your keyword" ${data.dataDir}/processed/
+> rg -n -C 3 "your keyword" ${data.contentDir}/processed/
 > \`\`\`
 `;
 }

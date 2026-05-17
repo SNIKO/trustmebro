@@ -4,7 +4,7 @@ import type { LanguageModel } from "ai";
 import YAML from "yaml";
 
 import { type Config, type DomainConfig, loadConfig, type SourceId } from "../../config.js";
-import { type ContentEngine, type ContentEngineDomain, createContentEngine } from "../../content/index.js";
+import { type ContentEngine, createContentEngine, type DomainEntry } from "../../content/index.js";
 import { buildSources } from "../../sources/index.js";
 import type { Source, SourceContext } from "../../sources/types.js";
 import { createLogger } from "../../utils/logger.js";
@@ -99,12 +99,11 @@ async function createEngine(
 	});
 }
 
-function buildDomainEntry(domain: DomainConfig, workspacePath: string): ContentEngineDomain {
-	const dataDir = path.isAbsolute(domain.dataDir) ? domain.dataDir : path.join(workspacePath, domain.dataDir);
+function buildDomainEntry(domain: DomainConfig, workspacePath: string): DomainEntry {
 	return {
 		name: domain.name,
-		domain: domain.description,
-		dataDir,
+		description: domain.description,
+		contentDir: path.resolve(workspacePath, domain.contentDir),
 		tagSchema: YAML.stringify(buildTagSchema(domain)),
 	};
 }

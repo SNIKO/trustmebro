@@ -14,6 +14,6 @@ export interface DomainSkillData {
 
 export interface SkillCreationOptions {
 	agent: AgentType;
-	dataDir: string;
+	contentDir: string;
 	domains: DomainSkillData[];
 }

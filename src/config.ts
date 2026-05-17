@@ -64,17 +64,19 @@ const domainSourcesSchema = z.object({
 	reddit: redditConfigSchema.optional(),
 });
 
-const domainConfigSchema = z.object({
-	/** Slug used as the folder name for storage and reference files (kebab-case). */
-	name: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Domain name must be kebab-case (e.g. stock-market)"),
-	description: z.string(),
-	/** Relative or absolute path for storing raw and processed files. Defaults to "data/social". */
-	dataDir: z.string().default("data/social"),
-	/** Fetch content published on or after this date. */
-	startDate: z.coerce.date(),
-	sources: domainSourcesSchema,
-	tags: tagsSchema,
-});
+const domainConfigSchema = z
+	.object({
+		/** Slug used as the folder name for storage and reference files (kebab-case). */
+		name: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Domain name must be kebab-case (e.g. stock-market)"),
+		description: z.string(),
+		/** Relative or absolute path for storing fetched and indexed content. Defaults to ./{name}. */
+		contentDir: z.string().optional(),
+		/** Fetch content published on or after this date. */
+		startDate: z.coerce.date(),
+		sources: domainSourcesSchema,
+		tags: tagsSchema,
+	})
+	.transform((d) => ({ ...d, contentDir: d.contentDir ?? d.name }));
 
 const configSchema = z.object({
 	indexing: indexingConfigSchema,
