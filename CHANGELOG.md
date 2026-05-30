@@ -1,5 +1,15 @@
 # @nikosv/trustmebro
 
+## 1.2.0
+
+### Minor Changes
+
+- 396f95e: Implement OAuth authentication and token management for Reddit integration
+
+### Patch Changes
+
+- df1a9be: Minor UI fix
+
 ## 1.1.0
 
 ### Minor Changes
