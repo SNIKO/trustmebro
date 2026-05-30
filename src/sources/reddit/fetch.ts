@@ -1,9 +1,10 @@
+import type { RedditTokenProvider } from "./reddit-auth.js";
 import type { RedditComment, RedditPost, RedditPostWithComments } from "./types.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const USER_AGENT = "trustmebro:v0.6.6 (sentiment analysis bot by /u/swniko)";
-const REDDIT_API_BASE = "https://www.reddit.com";
+const REDDIT_API_BASE = "https://oauth.reddit.com";
+const RATE_LIMIT_BUFFER_MS = 1000;
 
 type RedditListingResponse = {
 	data: {
@@ -44,18 +45,76 @@ type RedditCommentData = {
 	};
 };
 
-async function fetchJson<T>(url: string): Promise<T> {
+type RateLimitHeaders = {
+	remaining: number | null;
+	resetSeconds: number | null;
+	retryAfterSeconds: number | null;
+};
+
+async function fetchJson<T>(
+	url: string,
+	tokenProvider: RedditTokenProvider,
+	forceRefresh = false,
+	retriedRateLimit = false,
+): Promise<T> {
+	const accessToken = await tokenProvider.getAccessToken(forceRefresh);
 	const response = await fetch(url, {
 		headers: {
-			"User-Agent": USER_AGENT,
+			Authorization: `Bearer ${accessToken}`,
+			"User-Agent": tokenProvider.getUserAgent(),
 		},
 	});
+
+	if (response.status === 401 && !forceRefresh) {
+		return fetchJson<T>(url, tokenProvider, true);
+	}
+
+	if (response.status === 429 && !retriedRateLimit) {
+		await sleep(getRateLimitDelayMs(response.headers) ?? 60_000);
+		return fetchJson<T>(url, tokenProvider, forceRefresh, true);
+	}
 
 	if (!response.ok) {
 		throw new Error(`Reddit API error: ${response.status} ${response.statusText}`);
 	}
 
+	await waitForRateLimit(response.headers);
+
 	return response.json() as Promise<T>;
+}
+
+async function waitForRateLimit(headers: Headers): Promise<void> {
+	const delayMs = getRateLimitDelayMs(headers);
+	if (delayMs !== null) await sleep(delayMs);
+}
+
+function getRateLimitDelayMs(headers: Headers): number | null {
+	const rateLimit = readRateLimitHeaders(headers);
+	if (rateLimit.retryAfterSeconds !== null) return secondsToDelay(rateLimit.retryAfterSeconds);
+	if (rateLimit.remaining === null || rateLimit.remaining > 0) return null;
+	if (rateLimit.resetSeconds === null) return null;
+	return secondsToDelay(rateLimit.resetSeconds);
+}
+
+function readRateLimitHeaders(headers: Headers): RateLimitHeaders {
+	return {
+		remaining: readNumberHeader(headers, "x-ratelimit-remaining"),
+		resetSeconds: readNumberHeader(headers, "x-ratelimit-reset"),
+		retryAfterSeconds: readNumberHeader(headers, "retry-after"),
+	};
+}
+
+function readNumberHeader(headers: Headers, name: string): number | null {
+	const value = headers.get(name);
+	if (value === null) return null;
+
+	const numberValue = Number(value);
+	if (!Number.isFinite(numberValue)) return null;
+	return numberValue;
+}
+
+function secondsToDelay(seconds: number): number {
+	return Math.max(0, seconds * 1000 + RATE_LIMIT_BUFFER_MS);
 }
 
 export type PostsBatch = {
@@ -73,6 +132,7 @@ export async function* listPostsBatched(
 	subreddit: string,
 	startDate: Date,
 	sleepBetweenRequestsMs: number,
+	tokenProvider: RedditTokenProvider,
 ): AsyncGenerator<PostsBatch> {
 	let after: string | undefined;
 	const startTimestamp = startDate.getTime() / 1000; // Convert to Unix timestamp
@@ -80,10 +140,11 @@ export async function* listPostsBatched(
 	while (true) {
 		const params = new URLSearchParams({
 			limit: "100",
+			raw_json: "1",
 			...(after && { after }),
 		});
-		const url = `${REDDIT_API_BASE}/r/${subreddit}/new.json?${params}`;
-		const response = await fetchJson<RedditListingResponse>(url);
+		const url = `${REDDIT_API_BASE}/r/${subreddit}/new?${params}`;
+		const response = await fetchJson<RedditListingResponse>(url, tokenProvider);
 
 		const allPosts = response.data.children
 			.filter((child) => child.kind === "t3") // t3 = post
@@ -139,16 +200,18 @@ export async function fetchPostWithComments(
 	subreddit: string,
 	postId: string,
 	sleepBetweenRequestsMs: number,
+	tokenProvider: RedditTokenProvider,
 ): Promise<RedditPostWithComments | null> {
 	// Remove "t3_" prefix if present
 	const cleanId = postId.replace(/^t3_/, "");
-	const url = `${REDDIT_API_BASE}/r/${subreddit}/comments/${cleanId}.json?limit=500&depth=10`;
+	const params = new URLSearchParams({ limit: "500", depth: "10", raw_json: "1" });
+	const url = `${REDDIT_API_BASE}/r/${subreddit}/comments/${cleanId}?${params}`;
 
 	try {
-		const response = await fetchJson<RedditCommentsResponse>(url);
+		const response = await fetchJson<RedditCommentsResponse>(url, tokenProvider);
 
 		const postData = response[0].data.children[0];
-		if (!postData || postData.kind !== "t3") {
+		if (postData?.kind !== "t3") {
 			return null;
 		}
 

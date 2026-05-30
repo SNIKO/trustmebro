@@ -49,7 +49,7 @@ npx @nikosv/trustmebro index
 bunx @nikosv/trustmebro index
 ```
 
-> **Prerequisites:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) is required for YouTube fetching. Telegram requires API credentials from [my.telegram.org](https://my.telegram.org).
+> **Prerequisites:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) is required for YouTube fetching. Reddit requires an OAuth app from [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps). Telegram requires API credentials from [my.telegram.org](https://my.telegram.org).
 
 ### 2. Create a Workspace
 
@@ -129,7 +129,40 @@ domains:
 
 See [config.template.yaml](config.template.yaml) for a fully documented example with multiple domains and all available options.
 
-### 5. Authenticate (Telegram only)
+### 5. Authenticate Sources
+
+YouTube does not need authentication. Reddit and Telegram require one-time setup.
+
+#### Reddit
+
+TrustMeBro uses a Reddit OAuth bearer token.
+
+1. Create a Reddit app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps).
+2. Choose a script/web-style app with a client ID. A client secret is supported when your app has one.
+3. Set the redirect URI exactly to:
+
+   ```text
+   http://localhost:53682/reddit/callback
+   ```
+
+4. Export your Reddit OAuth settings:
+
+   ```bash
+   export REDDIT_CLIENT_ID="your_client_id"
+   export REDDIT_CLIENT_SECRET="your_client_secret"        # optional for installed apps
+   export REDDIT_USER_AGENT_USERNAME="your_reddit_username"
+   ```
+
+5. Run the Reddit login from your workspace:
+
+   ```bash
+   cd ~/stocks
+   trustmebro auth --source reddit
+   ```
+
+TrustMeBro opens Reddit in your browser, asks for `read` access, and saves tokens to `.trustmebro/reddit-oauth.json` in the workspace.
+
+#### Telegram
 
 Telegram requires a one-time interactive login using your Telegram account. Set your credentials as environment variables first:
 

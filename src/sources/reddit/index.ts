@@ -3,6 +3,7 @@ import type { Source, SourceContext } from "../types.js";
 import { listPostsBatched } from "./fetch.js";
 import { processPost } from "./process.js";
 import { getRedditProcessingPrompt } from "./process-prompt.js";
+import { authenticateReddit, createRedditTokenProvider } from "./reddit-auth.js";
 import { RedditState } from "./state.js";
 import type { RedditPost } from "./types.js";
 
@@ -14,10 +15,12 @@ const OVERLAP_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 export function createRedditSource(): Source {
 	return {
 		sourceId: "reddit",
+		authenticate: authenticateReddit,
 		getProcessingPrompt: getRedditProcessingPrompt,
 
 		async runOnce(context: SourceContext, publisherId: string): Promise<void> {
 			const state = new RedditState(context.workspacePath);
+			const tokenProvider = createRedditTokenProvider(context.workspacePath);
 			await state.load();
 
 			const redditConfig = context.domainConfig.sources.reddit;
@@ -42,6 +45,7 @@ export function createRedditSource(): Source {
 				publisherId,
 				cutoffDate,
 				context.domainConfig.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
+				tokenProvider,
 			)) {
 				if (batch.reachedEnd && !isBackfillComplete) {
 					reachedEndForBackfill = true;
@@ -59,6 +63,7 @@ export function createRedditSource(): Source {
 							post,
 							state,
 							minCommentCount,
+							tokenProvider,
 						});
 
 						if (result.status === "indexed") {
@@ -92,6 +97,7 @@ export function createRedditSource(): Source {
 						post,
 						state,
 						minCommentCount,
+						tokenProvider,
 						isReindex: true,
 					});
 

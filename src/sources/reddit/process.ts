@@ -1,6 +1,7 @@
 import { createLogger } from "../../utils/logger.js";
 import type { SourceContext } from "../types.js";
 import { buildPostUrl, fetchPostWithComments, formatCommentsAsText } from "./fetch.js";
+import type { RedditTokenProvider } from "./reddit-auth.js";
 import type { RedditState } from "./state.js";
 import type { PostRunResult, RedditPost, RedditPostWithComments } from "./types.js";
 
@@ -12,9 +13,10 @@ export async function processPost(args: {
 	post: RedditPost;
 	state: RedditState;
 	minCommentCount: number;
+	tokenProvider: RedditTokenProvider;
 	isReindex?: boolean;
 }): Promise<PostRunResult> {
-	const { context, subreddit, post, state, minCommentCount, isReindex } = args;
+	const { context, subreddit, post, state, minCommentCount, tokenProvider, isReindex } = args;
 	const postId = post.id;
 
 	try {
@@ -43,6 +45,7 @@ export async function processPost(args: {
 			subreddit,
 			postId,
 			context.domainConfig.sources.reddit?.sleepBetweenRequestsMs ?? 1000,
+			tokenProvider,
 		);
 		if (!postData) {
 			return {

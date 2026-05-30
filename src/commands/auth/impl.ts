@@ -13,7 +13,8 @@ export async function auth(flags: AuthCommandFlags): Promise<void> {
 
 	for (const source of sourcesToAuth) {
 		if (source.authenticate) {
-			await source.authenticate(workspacePath);
+			const authenticated = await source.authenticate(workspacePath);
+			if (!authenticated) throw new Error(`Authentication failed for source '${source.sourceId}'.`);
 		}
 	}
 }

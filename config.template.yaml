@@ -232,6 +232,15 @@ domains:
         pollIntervalMinutes: 60
 
       reddit:
+        # Reddit uses OAuth bearer tokens. Create a Reddit app at
+        # https://www.reddit.com/prefs/apps with redirect URI:
+        #   http://localhost:53682/reddit/callback
+        # Credentials are read from environment variables:
+        #   REDDIT_CLIENT_ID             — OAuth app client ID
+        #   REDDIT_CLIENT_SECRET         — OAuth app secret, optional for installed apps
+        #   REDDIT_USER_AGENT_USERNAME   — Reddit username for the User-Agent
+        # Run `trustmebro auth --source reddit` once to save tokens under
+        # .trustmebro/reddit-oauth.json.
         publishers:
           - "MachineLearning"
           - "LocalLLaMA"
@@ -298,4 +307,3 @@ domains:
 #   - Use string/string[] for open-ended values (more flexible)
 #   - Array types allow multiple tags per document
 #   - Keep descriptions clear and specific for better LLM extraction
-
