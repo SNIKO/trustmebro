@@ -33,7 +33,6 @@ export function createRedditSource(): Source {
 
 			log.info(`Fetching r/${publisherId} posts since ${cutoffDate.toISOString().split("T")[0]}`);
 
-			const fetchStart = Date.now();
 			const postsToReindex: RedditPost[] = [];
 			let reachedEndForBackfill = false;
 			let processedCount = 0;
@@ -64,9 +63,6 @@ export function createRedditSource(): Source {
 
 						if (result.status === "indexed") {
 							processedCount++;
-							if (processedCount % 10 === 0) {
-								log.info(`Processed ${processedCount} posts for r/${publisherId}`);
-							}
 						} else if (result.status === "error") {
 							errorCount++;
 							log.error(`Failed to index post "${post.title}" for r/${publisherId}: ${result.reason}`);
@@ -76,9 +72,6 @@ export function createRedditSource(): Source {
 					}
 				}
 			}
-
-			const fetchElapsed = ((Date.now() - fetchStart) / 1000).toFixed(0);
-			log.info(`Fetched ${processedCount} posts (${fetchElapsed}s)`);
 
 			if (
 				!isBackfillComplete &&

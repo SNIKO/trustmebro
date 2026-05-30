@@ -78,8 +78,6 @@ async function runTelegramOnce(context: SourceContext, publisherId: string): Pro
 			return;
 		}
 
-		log.info(`Fetched ${messages.length} new messages from @${publisherId}`);
-
 		const ordered = messages.slice().sort((a, b) => a.id - b.id);
 		let processedCount = 0;
 
@@ -87,7 +85,6 @@ async function runTelegramOnce(context: SourceContext, publisherId: string): Pro
 			try {
 				await processMessage(context, publisherId, msg, state, subscriberCount);
 				processedCount++;
-				log.info(`Processed ${processedCount}/${messages.length} messages for @${publisherId}`);
 			} catch (error) {
 				log.error(
 					`Failed to process message for @${publisherId}: ${error instanceof Error ? error.message : String(error)}`,

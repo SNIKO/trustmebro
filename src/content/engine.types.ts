@@ -1,6 +1,7 @@
 import type { LanguageModel } from "ai";
 
 import type { SourceId } from "../config.js";
+import type { ProgressReporter } from "../ui/events.js";
 
 export interface ContentEngine {
 	start(): Promise<void>;
@@ -37,4 +38,5 @@ export interface ContentEngineConfig {
 	model: LanguageModel;
 	workers: number;
 	customPrompts?: Record<string, string>;
+	progress?: ProgressReporter;
 }

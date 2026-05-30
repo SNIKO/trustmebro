@@ -26,6 +26,11 @@ export const indexCommand = buildCommand({
 				optional: true,
 				brief: "Fetch only the publisher with this id",
 			},
+			debug: {
+				kind: "boolean",
+				brief: "Show debug log entries in the terminal UI",
+				optional: true,
+			},
 		},
 	},
 	docs: {

@@ -10,33 +10,34 @@ import type { AddRequest } from "./engine.types.js";
 export async function writeRawDocument(
 	contentDir: string,
 	request: AddRequest,
-): Promise<{ filePath: string; relPath: string; written: boolean }> {
+): Promise<{ filePath: string; relPath: string; written: boolean; created: boolean }> {
 	const relPath = buildDocumentPath(request.source, request.publisher, request.creationDate, request.label);
 	const filePath = path.join(contentDir, "raw", relPath);
+	const exists = await fileExists(filePath);
 
 	const body = request.content.trim();
 	const newHash = hashContent(body);
 	const newFile = buildFileContent(request, newHash, body);
 
-	if (await fileExists(filePath)) {
+	if (exists) {
 		const existingFile = await readFile(filePath, "utf8");
 		const existingHash = extractContentHash(existingFile);
 
 		if (existingHash === null) {
 			// No contentHash in existing file — treat as an existing content and overwrite to add hash
 			await atomicWrite(filePath, newFile);
-			return { filePath, relPath, written: false };
+			return { filePath, relPath, written: false, created: false };
 		}
 
 		if (existingHash === newHash) {
 			// Frontmatter may have drifted — silently update the file if needed
 			if (existingFile !== newFile) await atomicWrite(filePath, newFile);
-			return { filePath, relPath, written: false };
+			return { filePath, relPath, written: false, created: false };
 		}
 	}
 
 	await atomicWrite(filePath, newFile);
-	return { filePath, relPath, written: true };
+	return { filePath, relPath, written: true, created: !exists };
 }
 
 function buildFileContent(request: AddRequest, contentHash: string, body: string): string {

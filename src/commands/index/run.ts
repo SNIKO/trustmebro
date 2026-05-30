@@ -7,7 +7,9 @@ import { type Config, type DomainConfig, loadConfig, type SourceId } from "../..
 import { type ContentEngine, createContentEngine, type DomainEntry } from "../../content/index.js";
 import { buildSources } from "../../sources/index.js";
 import type { Source, SourceContext } from "../../sources/types.js";
-import { createLogger } from "../../utils/logger.js";
+import type { ProgressReporter } from "../../ui/events.js";
+import { startIndexUi } from "../../ui/index-tui.js";
+import { createLogger, resetLogReporter, setLogReporter } from "../../utils/logger.js";
 
 const log = createLogger("index");
 
@@ -15,6 +17,7 @@ export interface IndexCommandFlags {
 	workspacePath?: string;
 	source?: SourceId;
 	publisher?: string;
+	debug?: boolean;
 }
 
 type TagSchema = Array<{
@@ -38,40 +41,60 @@ type RunContext = {
 };
 
 export async function index(flags: IndexCommandFlags): Promise<void> {
+	const ui = startIndexUi(flags.debug === true);
+	setLogReporter(ui.logReporter);
+
+	try {
+		await runIndex(flags, ui.progress);
+	} finally {
+		try {
+			await ui.stop();
+		} finally {
+			resetLogReporter();
+		}
+	}
+}
+
+async function runIndex(flags: IndexCommandFlags, progress: ProgressReporter): Promise<void> {
 	const workspacePath = flags.workspacePath ?? ".";
 	const config = await loadConfig(path.join(workspacePath, "config.yaml"));
 	const sources = buildSources();
 	const model = await resolveModel(config);
-	const engine = await createEngine(sources, config, workspacePath, model);
+	const engine = await createEngine(sources, config, workspacePath, model, progress);
 
-	await engine.start();
+	try {
+		await engine.start();
 
-	const ctx: RunContext = { config, workspacePath, engine, model };
-	const sourceRuns = buildSourceRuns(sources, flags, ctx);
+		const ctx: RunContext = { config, workspacePath, engine, model };
+		const sourceRuns = buildSourceRuns(sources, flags, ctx);
+		emitPublisherRows(sourceRuns, progress);
 
-	if (sourceRuns.length === 0) {
-		log.warn("No sources configured.");
+		if (sourceRuns.length === 0) {
+			log.warn("No sources configured.");
+			return;
+		}
+
+		log.info(`Running ${sourceRuns.length} source(s) across ${config.domains.length} domain(s) concurrently.`);
+
+		await checkAuthentication(
+			sourceRuns.map(({ source }) => source),
+			workspacePath,
+		);
+
+		const runErrors = await Promise.all(
+			sourceRuns.map(({ source, publishers }) => runSource(source, publishers, progress)),
+		);
+		const allErrors = runErrors.flat();
+
+		await engine.waitForIdle();
+
+		log.info("Fetching completed for all domains.");
+
+		if (allErrors.length > 0) {
+			throw new Error(`Indexing completed with ${allErrors.length} failed publisher run(s)`);
+		}
+	} finally {
 		await engine.stop();
-		return;
-	}
-
-	log.info(`Running ${sourceRuns.length} source(s) across ${config.domains.length} domain(s) concurrently.`);
-
-	await checkAuthentication(
-		sourceRuns.map(({ source }) => source),
-		workspacePath,
-	);
-
-	const runErrors = await Promise.all(sourceRuns.map(({ source, publishers }) => runSource(source, publishers)));
-	const allErrors = runErrors.flat();
-
-	await engine.waitForIdle();
-	await engine.stop();
-
-	log.info("Fetching completed for all domains.");
-
-	if (allErrors.length > 0) {
-		throw new Error(`Indexing completed with ${allErrors.length} failed publisher run(s)`);
 	}
 }
 
@@ -90,12 +113,14 @@ async function createEngine(
 	config: Config,
 	workspacePath: string,
 	model: LanguageModel,
+	progress: ProgressReporter,
 ): Promise<ContentEngine> {
 	return createContentEngine({
 		domains: config.domains.map((d) => buildDomainEntry(d, workspacePath)),
 		model,
 		workers: config.indexing.workers,
 		customPrompts: buildCustomPrompts(sources, config.domains),
+		progress,
 	});
 }
 
@@ -144,6 +169,18 @@ function buildSourceRuns(sources: Source[], flags: IndexCommandFlags, ctx: RunCo
 	return [...runMap.values()];
 }
 
+function emitPublisherRows(sourceRuns: SourceRun[], progress: ProgressReporter): void {
+	for (const { source, publishers } of sourceRuns) {
+		for (const { context } of publishers) {
+			progress.emit({
+				type: "publisher-register",
+				domain: context.domain,
+				sourceId: source.sourceId,
+			});
+		}
+	}
+}
+
 function addSourcePublishers(
 	runMap: Map<SourceId, SourceRun>,
 	source: Source,
@@ -177,21 +214,29 @@ async function checkAuthentication(sources: Source[], workspacePath: string): Pr
 	}
 }
 
-async function runSource(source: Source, publishers: PublisherTask[]): Promise<PublisherError[]> {
+async function runSource(
+	source: Source,
+	publishers: PublisherTask[],
+	progress: ProgressReporter,
+): Promise<PublisherError[]> {
 	const logger = createLogger(source.sourceId);
 	const errors: PublisherError[] = [];
 
-	for (const [i, { publisherId, context }] of publishers.entries()) {
+	for (const { publisherId, context } of publishers) {
 		try {
-			logger.info(`Fetching publisher ${i + 1}/${publishers.length}`);
+			progress.emit({
+				type: "publisher-start",
+				domain: context.domain,
+				sourceId: source.sourceId,
+			});
 			await source.runOnce(context, publisherId);
+			progress.emit({ type: "publisher-complete", domain: context.domain, sourceId: source.sourceId });
 		} catch (error) {
 			errors.push({ sourceId: source.sourceId, publisherId, error });
+			progress.emit({ type: "publisher-error", domain: context.domain, sourceId: source.sourceId });
 			logger.error(`Error processing '${publisherId}': ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
-
-	logger.info("Fetching completed");
 
 	return errors;
 }

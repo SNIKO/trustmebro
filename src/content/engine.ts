@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { APICallError } from "ai";
 
+import { noopProgressReporter } from "../ui/events.js";
 import { createLogger } from "../utils/logger.js";
 import type { AddRequest, AddResult, ContentEngine, ContentEngineConfig, DomainEntry } from "./engine.types.js";
 import { enrichDocument } from "./enricher.js";
@@ -55,12 +56,11 @@ export function createContentEngine(config: ContentEngineConfig): ContentEngine 
 	const queue: EnrichmentTask[] = [];
 	const idleResolvers: Array<() => void> = [];
 	const customPrompts = config.customPrompts ?? {};
+	const progress = config.progress ?? noopProgressReporter;
 	const rateLimiter = createRateLimiter();
 	let activeWorkers = 0;
 	let running = false;
 	let workerPromises: Promise<void>[] = [];
-	let totalEnqueued = 0;
-	let completedCount = 0;
 
 	function notifyIdleIfDone(): void {
 		if (queue.length === 0 && activeWorkers === 0) {
@@ -77,31 +77,50 @@ export function createContentEngine(config: ContentEngineConfig): ContentEngine 
 				continue;
 			}
 			activeWorkers++;
-			await rateLimiter.waitIfThrottled();
 			try {
-				await enrichDocument({ ...task, model: config.model, customPrompts });
-				rateLimiter.onSuccess();
-				completedCount++;
-				const displayPath = path.relative(path.join(task.domain.contentDir, "raw"), task.rawFilePath);
-				const remaining = totalEnqueued - completedCount;
-				log.info(
-					`[${completedCount}/${totalEnqueued}] enriched ${displayPath}${remaining > 0 ? ` (${remaining} left)` : ""}`,
-				);
-			} catch (error) {
-				if (isRateLimitError(error)) {
-					const sleepSecs = rateLimiter.onRateLimit();
-					log.warn(`Rate-limited by LLM. Sleeping ${sleepSecs}s before retry...`);
-					queue.unshift(task);
-				} else {
-					log.error(
-						`Enrichment failed for ${task.rawFilePath}: ${error instanceof Error ? error.message : String(error)}`,
-					);
-				}
+				await processTask(task);
 			} finally {
 				activeWorkers--;
 				notifyIdleIfDone();
 			}
 		}
+	}
+
+	async function processTask(task: EnrichmentTask): Promise<void> {
+		await rateLimiter.waitIfThrottled();
+		emitContentProgress("content-index-start", task);
+
+		try {
+			await enrichDocument({ ...task, model: config.model, customPrompts });
+			rateLimiter.onSuccess();
+			emitContentProgress("content-index-complete", task);
+		} catch (error) {
+			handleEnrichmentError(task, error);
+		}
+	}
+
+	function handleEnrichmentError(task: EnrichmentTask, error: unknown): void {
+		if (isRateLimitError(error)) {
+			const sleepSecs = rateLimiter.onRateLimit();
+			log.warn(`Rate-limited by LLM. Sleeping ${sleepSecs}s before retry...`);
+			emitContentProgress("content-index-retry", task);
+			queue.unshift(task);
+			return;
+		}
+
+		emitContentProgress("content-index-error", task);
+		log.error(`Enrichment failed for ${task.rawFilePath}: ${error instanceof Error ? error.message : String(error)}`);
+	}
+
+	function emitContentProgress(
+		type: "content-index-start" | "content-index-complete" | "content-index-error" | "content-index-retry",
+		task: EnrichmentTask,
+	): void {
+		progress.emit({
+			type,
+			domain: task.domain.name,
+			sourceId: task.sourceId,
+		});
 	}
 
 	return {
@@ -110,9 +129,9 @@ export function createContentEngine(config: ContentEngineConfig): ContentEngine 
 			running = true;
 			workerPromises = Array.from({ length: config.workers }, () => runWorker());
 
+			await emitContentStorageSnapshot(progress, config.domains);
 			const backlog = await scanUnprocessed(config.domains);
 			for (const task of backlog) queue.push(task);
-			totalEnqueued += backlog.length;
 			if (backlog.length > 0) log.info(`Enqueued ${backlog.length} unprocessed document(s) from previous runs.`);
 		},
 
@@ -132,22 +151,73 @@ export function createContentEngine(config: ContentEngineConfig): ContentEngine 
 			const domain = domainMap.get(request.domain);
 			if (!domain) return { success: false, message: `unknown domain: ${request.domain}` };
 
-			const { filePath: rawFilePath, relPath, written } = await writeRawDocument(domain.contentDir, request);
+			const { filePath: rawFilePath, relPath, written, created } = await writeRawDocument(domain.contentDir, request);
 
 			const processedFilePath = path.join(domain.contentDir, "processed", relPath);
 
 			if (written) {
-				await unlinkIfExists(processedFilePath);
+				if (created) {
+					progress.emit({ type: "content-raw-added", domain: domain.name, sourceId: request.source, count: 1 });
+				}
+				const removed = await unlinkIfExists(processedFilePath);
+				if (removed) {
+					progress.emit({
+						type: "content-processed-removed",
+						domain: domain.name,
+						sourceId: request.source,
+						count: 1,
+					});
+				}
 			} else if (await fileExists(processedFilePath)) {
 				return { success: true };
 			}
 
 			queue.push({ rawFilePath, processedFilePath, domain, sourceId: request.source });
-			totalEnqueued++;
 
 			return { success: true };
 		},
 	};
+}
+
+async function emitContentStorageSnapshot(
+	progress: NonNullable<ContentEngineConfig["progress"]>,
+	domains: DomainEntry[],
+): Promise<void> {
+	for (const domain of domains) {
+		const rawCounts = await countMarkdownBySource(path.join(domain.contentDir, "raw"));
+		const processedCounts = await countMarkdownBySource(path.join(domain.contentDir, "processed"));
+		const sourceIds = new Set([...rawCounts.keys(), ...processedCounts.keys()]);
+
+		for (const sourceId of sourceIds) {
+			progress.emit({
+				type: "content-storage-snapshot",
+				domain: domain.name,
+				sourceId,
+				total: rawCounts.get(sourceId) ?? 0,
+				enriched: processedCounts.get(sourceId) ?? 0,
+			});
+		}
+	}
+}
+
+async function countMarkdownBySource(rootDir: string): Promise<Map<AddRequest["source"], number>> {
+	const counts = new Map<AddRequest["source"], number>();
+
+	let relPaths: string[];
+	try {
+		const entries = await readdir(rootDir, { recursive: true });
+		relPaths = (entries as string[]).filter((entry) => entry.endsWith(".md"));
+	} catch {
+		return counts;
+	}
+
+	for (const relPath of relPaths) {
+		const [sourceId] = relPath.split(path.sep);
+		if (!sourceId) continue;
+		counts.set(sourceId as AddRequest["source"], (counts.get(sourceId as AddRequest["source"]) ?? 0) + 1);
+	}
+
+	return counts;
 }
 
 async function scanUnprocessed(domains: DomainEntry[]): Promise<EnrichmentTask[]> {
@@ -186,11 +256,13 @@ async function fileExists(filePath: string): Promise<boolean> {
 	}
 }
 
-async function unlinkIfExists(filePath: string): Promise<void> {
+async function unlinkIfExists(filePath: string): Promise<boolean> {
 	try {
 		await unlink(filePath);
+		return true;
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		return false;
 	}
 }
 
