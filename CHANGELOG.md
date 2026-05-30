@@ -1,5 +1,11 @@
 # @nikosv/trustmebro
 
+## 1.1.0
+
+### Minor Changes
+
+- 961ebc7: Better TUI ui with detailed progress and stats per domain and source
+
 ## 1.0.0
 
 ### Major Changes
