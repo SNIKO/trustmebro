@@ -175,7 +175,7 @@ function ProgressTable({
 
 	return (
 		<Box flexDirection="column">
-			<Text color="gray">{"Domain           Source     S  Publishers                  E  Content"}</Text>
+			<Text color="gray">{"Domain           Source        Publishers               Documents"}</Text>
 			{rows.map((row) => (
 				<ProgressRow key={row.key} row={row} spinnerFrame={spinnerFrame} />
 			))}
@@ -190,9 +190,9 @@ function ProgressRow({ row, spinnerFrame }: { row: DomainSourceProgress; spinner
 	return (
 		<Box>
 			<Text>{formatCell(row.domain, 17)}</Text>
-			<Text color="gray">{formatCell(row.sourceId, 11)}</Text>
+			<Text color="blue">{formatCell(row.sourceId, 11)}</Text>
 			<StatusIndicator indicator={syncIndicator} />
-			<Box width={28}>
+			<Box width={22}>
 				<ProgressSummary progress={row.publishers} />
 			</Box>
 			<StatusIndicator indicator={enrichIndicator} />
@@ -217,14 +217,12 @@ function ProgressSummary({ progress }: { progress: CountProgress }): React.JSX.E
 	return (
 		<Text>
 			<Text color="green">{progress.done}</Text>
-			<Text color="gray"> / </Text>
 			{progress.failed > 0 ? (
 				<>
-					<Text color="red">{progress.failed}</Text>
 					<Text color="gray"> / </Text>
+					<Text color="red">{progress.failed}</Text>
 				</>
 			) : null}
-			<Text color="gray">{progress.total}</Text>
 			{left > 0 ? <Text color="yellow">{` (${left} pending)`}</Text> : null}
 		</Text>
 	);
