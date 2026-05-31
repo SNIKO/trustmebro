@@ -63,6 +63,8 @@ export type ProgressEvent =
 	  };
 
 export type UiEvent = { type: "log"; record: LogRecord } | { type: "progress"; event: ProgressEvent };
+export type UiEventBatch = { type: "batch"; events: UiEvent[] };
+export type UiAction = UiEvent | UiEventBatch;
 
 export interface ProgressReporter {
 	emit(event: ProgressEvent): void;
