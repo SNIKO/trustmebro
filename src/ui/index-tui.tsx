@@ -3,7 +3,7 @@ import type React from "react";
 import { useEffect, useMemo, useReducer, useState } from "react";
 
 import { formatLogRecord, type LogRecord, type LogReporter } from "../utils/logger.js";
-import type { IndexUiSession, ProgressEvent, ProgressReporter, UiEvent } from "./events.js";
+import type { IndexUiSession, ProgressEvent, ProgressReporter, UiAction, UiEvent } from "./events.js";
 import {
 	type CountProgress,
 	type DomainSourceProgress,
@@ -12,7 +12,7 @@ import {
 	initialIndexUiState,
 } from "./store.js";
 
-type Listener = (event: UiEvent) => void;
+type Listener = (event: UiAction) => void;
 
 type TuiController = {
 	subscribe(listener: Listener): () => void;
@@ -27,8 +27,9 @@ const LEVEL_COLORS: Record<LogRecord["level"], string> = {
 };
 
 const DONE_DOT = "●";
+const ACTIVE_DOT = "●";
 const PENDING_DOT = "●";
-const SPINNER_FRAMES = ["|", "/", "-", "\\"] as const;
+const EVENT_FLUSH_MS = 1_000;
 
 export function startIndexUi(debug: boolean): IndexUiSession {
 	if (!isInteractiveTerminal()) return createFallbackReporter(debug);
@@ -56,17 +57,12 @@ export function startIndexUi(debug: boolean): IndexUiSession {
 function IndexTui({ controller, debug }: { controller: TuiController; debug: boolean }): React.JSX.Element {
 	const [state, dispatch] = useReducer(indexUiReducer, initialIndexUiState);
 	const [scrollOffset, setScrollOffset] = useState(0);
-	const [spinnerFrame, setSpinnerFrame] = useState(0);
 	const size = useWindowSize();
 	const dockHeight = getDockHeight(state, size.rows);
 	const logHeight = Math.max(6, size.rows - dockHeight - 2);
 	const visibleLogs = useVisibleLogs(state.logs, logHeight, debug ? scrollOffset : 0);
 
 	useEffect(() => controller.subscribe(dispatch), [controller]);
-	useEffect(() => {
-		const interval = setInterval(() => setSpinnerFrame((current) => current + 1), 120);
-		return () => clearInterval(interval);
-	}, []);
 
 	useInput((_input, key) => {
 		if (!debug) return;
@@ -84,7 +80,7 @@ function IndexTui({ controller, debug }: { controller: TuiController; debug: boo
 				<Header debug={debug} scrollOffset={scrollOffset} />
 				<LogFeed debug={debug} logs={visibleLogs} />
 			</Box>
-			<StatusDock height={dockHeight} spinnerFrame={spinnerFrame} state={state} />
+			<StatusDock height={dockHeight} state={state} />
 		</Box>
 	);
 }
@@ -138,15 +134,7 @@ function LogLine({ debug, record }: { debug: boolean; record: LogRecord }): Reac
 	);
 }
 
-function StatusDock({
-	height,
-	spinnerFrame,
-	state,
-}: {
-	height: number;
-	spinnerFrame: number;
-	state: IndexUiState;
-}): React.JSX.Element {
+function StatusDock({ height, state }: { height: number; state: IndexUiState }): React.JSX.Element {
 	const rows = sortRows(Object.values(state.rows));
 	const maxRows = Math.max(height - 4, 1);
 	const visibleRows = rows.slice(0, maxRows);
@@ -158,34 +146,28 @@ function StatusDock({
 				<Text bold>Progress</Text>
 				<Text color="gray">{new Date().toLocaleTimeString("en-US", { hour12: false })}</Text>
 			</Box>
-			<ProgressTable rows={visibleRows} spinnerFrame={spinnerFrame} />
+			<ProgressTable rows={visibleRows} />
 			{hiddenCount > 0 ? <Text color="gray">{hiddenCount} more row(s) hidden</Text> : null}
 		</Box>
 	);
 }
 
-function ProgressTable({
-	rows,
-	spinnerFrame,
-}: {
-	rows: DomainSourceProgress[];
-	spinnerFrame: number;
-}): React.JSX.Element {
+function ProgressTable({ rows }: { rows: DomainSourceProgress[] }): React.JSX.Element {
 	if (rows.length === 0) return <Text color="gray">Waiting for configured sources</Text>;
 
 	return (
 		<Box flexDirection="column">
 			<Text color="gray">{"Domain           Source        Publishers               Documents"}</Text>
 			{rows.map((row) => (
-				<ProgressRow key={row.key} row={row} spinnerFrame={spinnerFrame} />
+				<ProgressRow key={row.key} row={row} />
 			))}
 		</Box>
 	);
 }
 
-function ProgressRow({ row, spinnerFrame }: { row: DomainSourceProgress; spinnerFrame: number }): React.JSX.Element {
-	const syncIndicator = getStatusIndicator(row.publishers, spinnerFrame);
-	const enrichIndicator = getStatusIndicator(row.content, spinnerFrame);
+function ProgressRow({ row }: { row: DomainSourceProgress }): React.JSX.Element {
+	const syncIndicator = getStatusIndicator(row.publishers);
+	const enrichIndicator = getStatusIndicator(row.content);
 
 	return (
 		<Box>
@@ -238,22 +220,37 @@ function useVisibleLogs(logs: LogRecord[], height: number, scrollOffset: number)
 
 function createTuiController(): TuiController {
 	const listeners = new Set<Listener>();
-	const events: UiEvent[] = [];
+	let pendingEvents: UiEvent[] = [];
+	let flushTimer: NodeJS.Timeout | null = null;
 
 	return {
 		subscribe(listener): () => void {
 			listeners.add(listener);
-			for (const event of events) listener(event);
 			return () => {
 				listeners.delete(listener);
 			};
 		},
 		emit(event): void {
-			events.push(event);
-			if (events.length > 1_500) events.shift();
-			for (const listener of listeners) listener(event);
+			pendingEvents.push(event);
+			if (flushTimer) return;
+
+			flushTimer = setTimeout(() => {
+				const events = pendingEvents;
+				pendingEvents = [];
+				flushTimer = null;
+				if (events.length === 0) return;
+
+				const action = buildUiAction(events);
+				for (const listener of listeners) listener(action);
+			}, EVENT_FLUSH_MS);
 		},
 	};
+}
+
+function buildUiAction(events: UiEvent[]): UiAction {
+	const firstEvent = events[0];
+	if (events.length === 1 && firstEvent) return firstEvent;
+	return { type: "batch", events };
 }
 
 function createTuiLogReporter(controller: TuiController, debug: boolean): LogReporter {
@@ -312,16 +309,12 @@ type StatusIndicatorValue = {
 	dim: boolean;
 };
 
-function getStatusIndicator(progress: CountProgress, frame: number): StatusIndicatorValue {
+function getStatusIndicator(progress: CountProgress): StatusIndicatorValue {
 	const isComplete = progress.total > 0 && getLeft(progress) === 0 && progress.failed === 0;
 
-	if (progress.active > 0) return { label: getSpinner(frame), color: "yellow", dim: false };
+	if (progress.active > 0) return { label: ACTIVE_DOT, color: "yellow", dim: false };
 	if (isComplete) return { label: DONE_DOT, color: "green", dim: false };
 	return { label: PENDING_DOT, color: "yellow", dim: true };
-}
-
-function getSpinner(frame: number): string {
-	return SPINNER_FRAMES[frame % SPINNER_FRAMES.length] ?? "|";
 }
 
 function formatCell(value: string, width: number): string {

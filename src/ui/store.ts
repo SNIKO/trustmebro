@@ -1,5 +1,5 @@
 import type { LogRecord } from "../utils/logger.js";
-import type { ProgressEvent, UiEvent } from "./events.js";
+import type { ProgressEvent, UiAction, UiEvent } from "./events.js";
 
 const MAX_LOG_LINES = 1_000;
 
@@ -28,7 +28,12 @@ export const initialIndexUiState: IndexUiState = {
 	rows: {},
 };
 
-export function indexUiReducer(state: IndexUiState, event: UiEvent): IndexUiState {
+export function indexUiReducer(state: IndexUiState, action: UiAction): IndexUiState {
+	if (action.type === "batch") return action.events.reduce(reduceEvent, state);
+	return reduceEvent(state, action);
+}
+
+function reduceEvent(state: IndexUiState, event: UiEvent): IndexUiState {
 	if (event.type === "log") return appendLog(state, event.record);
 	return applyProgressEvent(state, event.event);
 }
