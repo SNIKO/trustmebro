@@ -1,5 +1,15 @@
 # @nikosv/trustmebro
 
+## 1.3.0
+
+### Minor Changes
+
+- c7e3d44: Add continuous source polling
+
+### Patch Changes
+
+- baf8457: Fix memroy leak by removing TUI spinner
+
 ## 1.2.0
 
 ### Minor Changes
