@@ -15,8 +15,6 @@ const log = createLogger("index");
 
 export interface IndexCommandFlags {
 	workspacePath?: string;
-	source?: SourceId;
-	publisher?: string;
 	debug?: boolean;
 }
 
@@ -66,7 +64,7 @@ async function runIndex(flags: IndexCommandFlags, progress: ProgressReporter): P
 		await engine.start();
 
 		const ctx: RunContext = { config, workspacePath, engine, model };
-		const sourceRuns = buildSourceRuns(sources, flags, ctx);
+		const sourceRuns = buildSourceRuns(sources, ctx);
 		emitPublisherRows(sourceRuns, progress);
 
 		if (sourceRuns.length === 0) {
@@ -74,25 +72,14 @@ async function runIndex(flags: IndexCommandFlags, progress: ProgressReporter): P
 			return;
 		}
 
-		log.info(`Running ${sourceRuns.length} source(s) across ${config.domains.length} domain(s) concurrently.`);
+		log.info(`Running ${sourceRuns.length} source loop(s) across ${config.domains.length} domain(s).`);
 
 		await checkAuthentication(
 			sourceRuns.map(({ source }) => source),
 			workspacePath,
 		);
 
-		const runErrors = await Promise.all(
-			sourceRuns.map(({ source, publishers }) => runSource(source, publishers, progress)),
-		);
-		const allErrors = runErrors.flat();
-
-		await engine.waitForIdle();
-
-		log.info("Fetching completed for all domains.");
-
-		if (allErrors.length > 0) {
-			throw new Error(`Indexing completed with ${allErrors.length} failed publisher run(s)`);
-		}
+		await Promise.all(sourceRuns.map((sourceRun) => runSourceLoop(sourceRun, config, progress)));
 	} finally {
 		await engine.stop();
 	}
@@ -156,13 +143,13 @@ function buildCustomPrompts(sources: Source[], domains: DomainConfig[]): Record<
 	return prompts;
 }
 
-function buildSourceRuns(sources: Source[], flags: IndexCommandFlags, ctx: RunContext): SourceRun[] {
+function buildSourceRuns(sources: Source[], ctx: RunContext): SourceRun[] {
 	const runMap = new Map<SourceId, SourceRun>();
 
 	for (const domain of ctx.config.domains) {
 		const context: SourceContext = { ...ctx, domainConfig: domain, domain: domain.name };
 		for (const source of sources) {
-			addSourcePublishers(runMap, source, context, flags);
+			addSourcePublishers(runMap, source, context);
 		}
 	}
 
@@ -181,18 +168,11 @@ function emitPublisherRows(sourceRuns: SourceRun[], progress: ProgressReporter):
 	}
 }
 
-function addSourcePublishers(
-	runMap: Map<SourceId, SourceRun>,
-	source: Source,
-	context: SourceContext,
-	flags: IndexCommandFlags,
-): void {
-	if (flags.source && source.sourceId !== flags.source) return;
-
+function addSourcePublishers(runMap: Map<SourceId, SourceRun>, source: Source, context: SourceContext): void {
 	const sourceConfig = context.domainConfig.sources[source.sourceId];
 	if (!sourceConfig) return;
 
-	const publisherIds = flags.publisher ? [flags.publisher] : sourceConfig.publishers;
+	const publisherIds = sourceConfig.publishers;
 	if (publisherIds.length === 0) return;
 
 	const publishers = publisherIds.map((publisherId) => ({ publisherId, context }));
@@ -211,6 +191,26 @@ async function checkAuthentication(sources: Source[], workspacePath: string): Pr
 				);
 			}
 		}
+	}
+}
+
+async function runSourceLoop(sourceRun: SourceRun, config: Config, progress: ProgressReporter): Promise<never> {
+	const { source, publishers } = sourceRun;
+	const logger = createLogger(source.sourceId);
+	const intervalMinutes = config.indexing.sources[source.sourceId].updateIntervalMinutes;
+	const intervalMs = intervalMinutes * 60 * 1000;
+
+	while (true) {
+		logger.info(`Starting ${source.sourceId} fetch cycle for ${publishers.length} publisher(s).`);
+		const errors = await runSource(source, publishers, progress);
+		if (errors.length > 0) {
+			logger.warn(`${source.sourceId} fetch cycle completed with ${errors.length} publisher error(s).`);
+		} else {
+			logger.info(`${source.sourceId} fetch cycle completed.`);
+		}
+
+		logger.info(`Waiting ${intervalMinutes} minute(s) before next ${source.sourceId} fetch cycle.`);
+		await sleep(intervalMs);
 	}
 }
 
@@ -239,6 +239,10 @@ async function runSource(
 	}
 
 	return errors;
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isProviderFactory(value: unknown): value is ProviderFactory {

@@ -52,9 +52,28 @@ const modelConfigSchema = z.object({
 
 export type ModelConfig = z.infer<typeof modelConfigSchema>;
 
+const sourceIndexingConfigSchema = z.object({
+	updateIntervalMinutes: z.coerce.number().positive().default(60),
+});
+
+const defaultSourceIndexingConfig = { updateIntervalMinutes: 60 };
+
+const indexingSourcesConfigSchema = z.object({
+	youtube: sourceIndexingConfigSchema.optional().default(defaultSourceIndexingConfig),
+	telegram: sourceIndexingConfigSchema.optional().default(defaultSourceIndexingConfig),
+	twitter: sourceIndexingConfigSchema.optional().default(defaultSourceIndexingConfig),
+	reddit: sourceIndexingConfigSchema.optional().default(defaultSourceIndexingConfig),
+});
+
 const indexingConfigSchema = z.object({
 	workers: z.coerce.number().int().default(5),
 	model: modelConfigSchema,
+	sources: indexingSourcesConfigSchema.optional().default({
+		youtube: defaultSourceIndexingConfig,
+		telegram: defaultSourceIndexingConfig,
+		twitter: defaultSourceIndexingConfig,
+		reddit: defaultSourceIndexingConfig,
+	}),
 });
 
 const domainSourcesSchema = z.object({
