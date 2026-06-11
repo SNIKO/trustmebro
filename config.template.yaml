@@ -10,6 +10,19 @@ indexing:
   # Number of parallel processing workers (default: 5)
   workers: 5
 
+  # Global source update intervals. After a source finishes fetching all configured
+  # publishers across all domains, the indexer waits this many minutes before
+  # checking that source again (default: 60 for omitted values).
+  sources:
+    youtube:
+      updateIntervalMinutes: 60
+    telegram:
+      updateIntervalMinutes: 60
+    reddit:
+      updateIntervalMinutes: 60
+    twitter:
+      updateIntervalMinutes: 60
+
   # Model configuration
   model:
     # Provider package name
@@ -78,9 +91,6 @@ domains:
           - "@AswathDamodaranonValuation"
           # Add more channels...
 
-        # How often to check for new videos (in minutes)
-        pollIntervalMinutes: 60
-
       # Telegram channels
       telegram:
         # Credentials are read from environment variables (not stored in config):
@@ -99,7 +109,6 @@ domains:
         # Example:
         # - "elonmusk"
         # - "cathiedwood"
-        pollIntervalMinutes: 60
 
     # -------------------------------------------------------------------------
     # TAG SCHEMA
@@ -229,7 +238,6 @@ domains:
         publishers:
           - "@YannicKilcher"
           - "@sentdex"
-        pollIntervalMinutes: 60
 
       reddit:
         # Reddit uses OAuth bearer tokens. Create a Reddit app at
@@ -252,7 +260,6 @@ domains:
 
       twitter:
         publishers: []
-        pollIntervalMinutes: 60
 
     tags:
       model_name:

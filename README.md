@@ -184,16 +184,8 @@ This saves a session to `.trustmebro/telegram-session.txt`. You only need to do 
 ```bash
 cd ~/stocks
 
-# Index all configured sources
+# Continuously index all configured sources
 trustmebro index
-
-# Index a specific source
-trustmebro index --source youtube
-trustmebro index --source reddit
-trustmebro index --source telegram
-
-# Index a specific publisher
-trustmebro index --source youtube --publisher @JosephCarlsonShow
 
 # Use a different workspace
 trustmebro index --workspacePath /path/to/workspace
