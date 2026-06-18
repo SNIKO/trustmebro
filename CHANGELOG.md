@@ -1,5 +1,11 @@
 # @nikosv/trustmebro
 
+## 1.4.0
+
+### Minor Changes
+
+- dff1f9a: Persist enriching queue to minimize memory usage
+
 ## 1.3.0
 
 ### Minor Changes
