@@ -24,10 +24,12 @@ export type ConfigTags = z.infer<typeof tagsSchema>;
 export type TagType = ConfigTag["type"];
 
 const publisherConfigSchema = z.object({
+	enabled: z.boolean().default(true),
 	publishers: z.array(z.string()).default([]),
 });
 
 const telegramConfigSchema = z.object({
+	enabled: z.boolean().default(true),
 	publishers: z.array(z.string()).default([]),
 	/** Minimum message length (characters) to index. Messages shorter than this with no images are ignored. */
 	minMessageLength: z.coerce.number().int().nonnegative().default(200),
@@ -36,6 +38,7 @@ const telegramConfigSchema = z.object({
 export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
 
 const redditConfigSchema = z.object({
+	enabled: z.boolean().default(true),
 	publishers: z.array(z.string()).default([]),
 	/** Minimum number of comments required for a post to be indexed */
 	commentsCountThreshold: z.coerce.number().int().nonnegative().default(0),
@@ -53,10 +56,11 @@ const modelConfigSchema = z.object({
 export type ModelConfig = z.infer<typeof modelConfigSchema>;
 
 const sourceIndexingConfigSchema = z.object({
+	enabled: z.boolean().default(true),
 	updateIntervalMinutes: z.coerce.number().positive().default(60),
 });
 
-const defaultSourceIndexingConfig = { updateIntervalMinutes: 60 };
+const defaultSourceIndexingConfig = { enabled: true, updateIntervalMinutes: 60 };
 
 const indexingSourcesConfigSchema = z.object({
 	youtube: sourceIndexingConfigSchema.optional().default(defaultSourceIndexingConfig),
@@ -68,13 +72,16 @@ const indexingSourcesConfigSchema = z.object({
 const indexingConfigSchema = z.object({
 	workers: z.coerce.number().int().default(5),
 	model: modelConfigSchema,
-	sources: indexingSourcesConfigSchema.optional().default({
-		youtube: defaultSourceIndexingConfig,
-		telegram: defaultSourceIndexingConfig,
-		twitter: defaultSourceIndexingConfig,
-		reddit: defaultSourceIndexingConfig,
-	}),
+	/** Deprecated: use top-level sources instead. */
+	sources: indexingSourcesConfigSchema.optional(),
 });
+
+const defaultSourcesConfig = {
+	youtube: defaultSourceIndexingConfig,
+	telegram: defaultSourceIndexingConfig,
+	twitter: defaultSourceIndexingConfig,
+	reddit: defaultSourceIndexingConfig,
+};
 
 const domainSourcesSchema = z.object({
 	youtube: publisherConfigSchema.optional(),
@@ -99,6 +106,7 @@ const domainConfigSchema = z
 
 const configSchema = z.object({
 	indexing: indexingConfigSchema,
+	sources: indexingSourcesConfigSchema.optional().default(defaultSourcesConfig),
 	domains: z.array(domainConfigSchema).min(1),
 });
 

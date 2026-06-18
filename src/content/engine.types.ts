@@ -36,6 +36,7 @@ export interface DomainEntry {
 export interface ContentEngineConfig {
 	domains: DomainEntry[];
 	model: LanguageModel;
+	queueDir: string;
 	workers: number;
 	customPrompts?: Record<string, string>;
 	progress?: ProgressReporter;

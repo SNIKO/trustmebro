@@ -105,6 +105,7 @@ async function createEngine(
 	return createContentEngine({
 		domains: config.domains.map((d) => buildDomainEntry(d, workspacePath)),
 		model,
+		queueDir: path.resolve(workspacePath, ".trustmebro", "queue", "enrichment"),
 		workers: config.indexing.workers,
 		customPrompts: buildCustomPrompts(sources, config.domains),
 		progress,
@@ -169,8 +170,11 @@ function emitPublisherRows(sourceRuns: SourceRun[], progress: ProgressReporter):
 }
 
 function addSourcePublishers(runMap: Map<SourceId, SourceRun>, source: Source, context: SourceContext): void {
+	const globalSourceConfig = context.config.sources[source.sourceId];
+	if (globalSourceConfig.enabled === false) return;
+
 	const sourceConfig = context.domainConfig.sources[source.sourceId];
-	if (!sourceConfig) return;
+	if (!sourceConfig || sourceConfig.enabled === false) return;
 
 	const publisherIds = sourceConfig.publishers;
 	if (publisherIds.length === 0) return;
@@ -197,7 +201,7 @@ async function checkAuthentication(sources: Source[], workspacePath: string): Pr
 async function runSourceLoop(sourceRun: SourceRun, config: Config, progress: ProgressReporter): Promise<never> {
 	const { source, publishers } = sourceRun;
 	const logger = createLogger(source.sourceId);
-	const intervalMinutes = config.indexing.sources[source.sourceId].updateIntervalMinutes;
+	const intervalMinutes = config.sources[source.sourceId].updateIntervalMinutes;
 	const intervalMs = intervalMinutes * 60 * 1000;
 
 	while (true) {

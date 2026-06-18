@@ -22,7 +22,15 @@ export async function enrichDocument(args: {
 	const promptTemplate = customPrompts[`${domain.name}/${sourceId}`] ?? buildDefaultPrompt(domain);
 	const prompt = promptTemplate.replace("{CONTENT}", body);
 
-	const { text } = await generateText({ model, prompt, maxRetries: 0 });
+	const { text } = await generateText({
+		model,
+		prompt,
+		maxRetries: 0,
+		experimental_include: {
+			requestBody: false,
+			responseBody: false,
+		},
+	});
 
 	await mkdir(path.dirname(processedFilePath), { recursive: true });
 
